@@ -48,6 +48,7 @@ import java.util.Set;
  *         See the License for the specific language governing permissions and
  *         limitations under the License.
  */
+@SuppressWarnings("rawtypes")
 public class MapResolver extends Resolver
 {
 
@@ -66,7 +67,7 @@ public class MapResolver extends Resolver
      * Walk the JsonObject fields and perform necessary substitutions so that all references matched up.
      * This code patches @ref and @id pairings up, in the 'Map of Map' mode.  Where the JSON may contain
      * an @id of an object which can have more than one @ref to it, this code will make sure that each
-     * @ref (value side of the Map associated to a given field name) will be pointer to the appropriate Map
+     * "@ref" (value side of the Map associated to a given field name) will be pointer to the appropriate Map
      * instance.
      * @param stack   Stack (Deque) used for graph traversal.
      * @param jsonObj a Map-of-Map representation of the current object being examined (containing all fields).
@@ -132,7 +133,7 @@ public class MapResolver extends Resolver
                 {
                     if (fieldType != String.class && fieldType != StringBuilder.class && fieldType != StringBuffer.class)
                     {
-                        if ("".equals(((String)rhs).trim()))
+                        if (((String) rhs).trim().isEmpty())
                         {   // Allow "" to null out a non-String field on the inbound JSON
                             jsonObj.put(fieldName, null);
                         }

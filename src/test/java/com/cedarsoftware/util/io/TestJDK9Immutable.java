@@ -1,14 +1,26 @@
 package com.cedarsoftware.util.io;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.junit.Assert;
-import org.junit.Test;
+import com.cedarsoftware.util.reflect.Accessor;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-public class TestJDK9Immutable {
+class TestJDK9Immutable {
+
+    static class Pair<K, V> {
+        K k;
+        V v;
+        Pair(K k, V v) {
+            this.k = k;
+            this.v = v;
+        }
+    }
 
     static class Rec {
         final String s;
@@ -22,7 +34,15 @@ public class TestJDK9Immutable {
         List<Rec> ilinks;
         List<Rec> mlinks;
 
-		Map<String, Rec> smap;
+        Map<String, Rec> smap;
+        Map<Pair<Integer, Character>, String> pmap;
+
+		public String toString() {
+			return "Rec{" +
+				"s='" + s + '\'' +
+				", i=" + i +
+				'}';
+		}
     }
 
     @Test
@@ -32,8 +52,8 @@ public class TestJDK9Immutable {
         String json = JsonWriter.objectToJson(o);
         List<?> es = (List<?>) JsonReader.jsonToJava(json);
 
-        Assert.assertEquals(0, es.size());
-        Assert.assertEquals(o.getClass(), es.getClass());
+        assertEquals(0, es.size());
+        assertEquals(o.getClass(), es.getClass());
     }
 
     @Test
@@ -43,8 +63,8 @@ public class TestJDK9Immutable {
         String json = JsonWriter.objectToJson(o);
         List<?> es = (List<?>) JsonReader.jsonToJava(json);
 
-        Assert.assertEquals(0, es.size());
-        Assert.assertEquals(o.getClass(), es.getClass());
+        assertEquals(0, es.size());
+        assertEquals(o.getClass(), es.getClass());
     }
 
     @Test
@@ -54,8 +74,8 @@ public class TestJDK9Immutable {
         String json = JsonWriter.objectToJson(o);
         List<?> es = (List<?>) JsonReader.jsonToJava(json);
 
-        Assert.assertEquals(1, es.size());
-        Assert.assertEquals(o.getClass(), es.getClass());
+        assertEquals(1, es.size());
+        assertEquals(o.getClass(), es.getClass());
     }
 
     @Test
@@ -65,8 +85,8 @@ public class TestJDK9Immutable {
         String json = JsonWriter.objectToJson(o);
         List<?> es = (List<?>) JsonReader.jsonToJava(json);
 
-        Assert.assertEquals(2, es.size());
-        Assert.assertEquals(o.getClass(), es.getClass());
+        assertEquals(2, es.size());
+        assertEquals(o.getClass(), es.getClass());
     }
 
     @Test
@@ -76,8 +96,8 @@ public class TestJDK9Immutable {
         String json = JsonWriter.objectToJson(o);
         List<?> es = (List<?>) JsonReader.jsonToJava(json);
 
-        Assert.assertEquals(3, es.size());
-        Assert.assertEquals(o.getClass(), es.getClass());
+        assertEquals(3, es.size());
+        assertEquals(o.getClass(), es.getClass());
     }
 
     @Test
@@ -87,8 +107,8 @@ public class TestJDK9Immutable {
         String json = JsonWriter.objectToJson(o);
         Set<?> es = (Set<?>) JsonReader.jsonToJava(json);
 
-        Assert.assertEquals(0, es.size());
-        Assert.assertEquals(o.getClass(), es.getClass());
+        assertEquals(0, es.size());
+        assertEquals(o.getClass(), es.getClass());
     }
 
     @Test
@@ -98,8 +118,8 @@ public class TestJDK9Immutable {
         String json = JsonWriter.objectToJson(o);
         Set<?> es = (Set<?>) JsonReader.jsonToJava(json);
 
-        Assert.assertEquals(1, es.size());
-        Assert.assertEquals(o.getClass(), es.getClass());
+        assertEquals(1, es.size());
+        assertEquals(o.getClass(), es.getClass());
     }
 
     @Test
@@ -109,8 +129,8 @@ public class TestJDK9Immutable {
         String json = JsonWriter.objectToJson(o);
         Set<?> es = (Set<?>) JsonReader.jsonToJava(json);
 
-        Assert.assertEquals(2, es.size());
-        Assert.assertEquals(o.getClass(), es.getClass());
+        assertEquals(2, es.size());
+        assertEquals(o.getClass(), es.getClass());
     }
 
     @Test
@@ -120,8 +140,8 @@ public class TestJDK9Immutable {
         String json = JsonWriter.objectToJson(o);
         Set<?> es = (Set<?>) JsonReader.jsonToJava(json);
 
-        Assert.assertEquals(3, es.size());
-        Assert.assertEquals(o.getClass(), es.getClass());
+        assertEquals(3, es.size());
+        assertEquals(o.getClass(), es.getClass());
     }
 
     @Test
@@ -137,22 +157,22 @@ public class TestJDK9Immutable {
         String json = JsonWriter.objectToJson(ol);
         List<Rec> recs = (List<Rec>) JsonReader.jsonToJava(json);
 
-        Assert.assertEquals(ol.getClass(), recs.getClass());
-        Assert.assertEquals(ol.size(), recs.size());
+        assertEquals(ol.getClass(), recs.getClass());
+        assertEquals(ol.size(), recs.size());
 
-        Assert.assertEquals(ol.get(0).s, recs.get(0).s);
-        Assert.assertEquals(ol.get(0).i, recs.get(0).i);
-        Assert.assertEquals(recs.get(1), recs.get(0).link);
-        Assert.assertEquals(ol.get(1).s, recs.get(1).s);
-        Assert.assertEquals(ol.get(1).i, recs.get(1).i);
-        Assert.assertEquals(recs.get(0), recs.get(1).link);
+        assertEquals(ol.get(0).s, recs.get(0).s);
+        assertEquals(ol.get(0).i, recs.get(0).i);
+        assertEquals(recs.get(1), recs.get(0).link);
+        assertEquals(ol.get(1).s, recs.get(1).s);
+        assertEquals(ol.get(1).i, recs.get(1).i);
+        assertEquals(recs.get(0), recs.get(1).link);
 
-        Assert.assertEquals(recs.get(0), recs.get(2));
+        assertEquals(recs.get(0), recs.get(2));
 
-        Assert.assertEquals(ol.get(0).mlinks.size(), recs.get(0).mlinks.size());
-        Assert.assertEquals(ol.get(0).mlinks.getClass(), recs.get(0).mlinks.getClass());
-        Assert.assertEquals(ol.get(1).mlinks.size(), recs.get(1).mlinks.size());
-        Assert.assertEquals(ol.get(1).mlinks.getClass(), recs.get(1).mlinks.getClass());
+        assertEquals(ol.get(0).mlinks.size(), recs.get(0).mlinks.size());
+        assertEquals(ol.get(0).mlinks.getClass(), recs.get(0).mlinks.getClass());
+        assertEquals(ol.get(1).mlinks.size(), recs.get(1).mlinks.size());
+        assertEquals(ol.get(1).mlinks.getClass(), recs.get(1).mlinks.getClass());
     }
 
     @Test
@@ -168,22 +188,22 @@ public class TestJDK9Immutable {
         String json = JsonWriter.objectToJson(ol);
         List<Rec> recs = (List<Rec>) JsonReader.jsonToJava(json);
 
-        Assert.assertEquals(ol.getClass(), recs.getClass());
-        Assert.assertEquals(ol.size(), recs.size());
+        assertEquals(ol.getClass(), recs.getClass());
+        assertEquals(ol.size(), recs.size());
 
-        Assert.assertEquals(ol.get(0).s, recs.get(0).s);
-        Assert.assertEquals(ol.get(0).i, recs.get(0).i);
-        Assert.assertEquals(recs.get(1), recs.get(0).link);
-        Assert.assertEquals(ol.get(1).s, recs.get(1).s);
-        Assert.assertEquals(ol.get(1).i, recs.get(1).i);
-        Assert.assertEquals(recs.get(0), recs.get(1).link);
+        assertEquals(ol.get(0).s, recs.get(0).s);
+        assertEquals(ol.get(0).i, recs.get(0).i);
+        assertEquals(recs.get(1), recs.get(0).link);
+        assertEquals(ol.get(1).s, recs.get(1).s);
+        assertEquals(ol.get(1).i, recs.get(1).i);
+        assertEquals(recs.get(0), recs.get(1).link);
 
-        Assert.assertEquals(recs.get(0), recs.get(2));
+        assertEquals(recs.get(0), recs.get(2));
 
-        Assert.assertEquals(ol.get(0).mlinks.size(), recs.get(0).mlinks.size());
-        Assert.assertEquals(ol.get(0).mlinks.getClass(), recs.get(0).mlinks.getClass());
-        Assert.assertEquals(ol.get(1).mlinks.size(), recs.get(1).mlinks.size());
-        Assert.assertEquals(ol.get(1).mlinks.getClass(), recs.get(1).mlinks.getClass());
+        assertEquals(ol.get(0).mlinks.size(), recs.get(0).mlinks.size());
+        assertEquals(ol.get(0).mlinks.getClass(), recs.get(0).mlinks.getClass());
+        assertEquals(ol.get(1).mlinks.size(), recs.get(1).mlinks.size());
+        assertEquals(ol.get(1).mlinks.getClass(), recs.get(1).mlinks.getClass());
     }
 
     @Test
@@ -201,29 +221,29 @@ public class TestJDK9Immutable {
         String json = JsonWriter.objectToJson(ol);
         Object es = (List) JsonReader.jsonToJava(json);
 
-        Assert.assertEquals(((Object) ol).getClass(), es.getClass());
+        assertEquals(((Object) ol).getClass(), es.getClass());
 
-        List<Rec> recs = (List<Rec>) es;
-        Assert.assertEquals(ol.size(), recs.size());
+		List<Rec> recs = (List<Rec>) es;
+        assertEquals(ol.size(), recs.size());
 
-        Assert.assertEquals(ol.get(0).s, recs.get(0).s);
-        Assert.assertEquals(ol.get(0).i, recs.get(0).i);
-        Assert.assertEquals(recs.get(1), recs.get(0).link);
-        Assert.assertEquals(ol.get(1).s, recs.get(1).s);
-        Assert.assertEquals(ol.get(1).i, recs.get(1).i);
-        Assert.assertEquals(recs.get(0), recs.get(1).link);
+        assertEquals(ol.get(0).s, recs.get(0).s);
+        assertEquals(ol.get(0).i, recs.get(0).i);
+        assertEquals(recs.get(1), recs.get(0).link);
+        assertEquals(ol.get(1).s, recs.get(1).s);
+        assertEquals(ol.get(1).i, recs.get(1).i);
+        assertEquals(recs.get(0), recs.get(1).link);
 
-        Assert.assertEquals(recs.get(0), recs.get(2));
+        assertEquals(recs.get(0), recs.get(2));
 
-        Assert.assertEquals(ol.get(0).mlinks.size(), recs.get(0).mlinks.size());
-        Assert.assertEquals(ol.get(0).mlinks.getClass(), recs.get(0).mlinks.getClass());
-        Assert.assertEquals(ol.get(1).mlinks.size(), recs.get(1).mlinks.size());
-        Assert.assertEquals(ol.get(1).mlinks.getClass(), recs.get(1).mlinks.getClass());
+        assertEquals(ol.get(0).mlinks.size(), recs.get(0).mlinks.size());
+        assertEquals(ol.get(0).mlinks.getClass(), recs.get(0).mlinks.getClass());
+        assertEquals(ol.get(1).mlinks.size(), recs.get(1).mlinks.size());
+        assertEquals(ol.get(1).mlinks.getClass(), recs.get(1).mlinks.getClass());
 
-        Assert.assertEquals(ol.get(0).ilinks.getClass(), recs.get(0).ilinks.getClass());
-        Assert.assertEquals(ol.get(0).ilinks.size(), recs.get(0).ilinks.size());
-        Assert.assertEquals(ol.get(1).ilinks.getClass(), recs.get(1).ilinks.getClass());
-        Assert.assertEquals(ol.get(1).ilinks.size(), recs.get(1).ilinks.size());
+        assertEquals(ol.get(0).ilinks.getClass(), recs.get(0).ilinks.getClass());
+        assertEquals(ol.get(0).ilinks.size(), recs.get(0).ilinks.size());
+        assertEquals(ol.get(1).ilinks.getClass(), recs.get(1).ilinks.getClass());
+        assertEquals(ol.get(1).ilinks.size(), recs.get(1).ilinks.size());
     }
 
     @Test
@@ -234,26 +254,111 @@ public class TestJDK9Immutable {
         rec2.ilinks = List.of();
         List<Rec> ol = List.of(rec1, rec2, rec1);
 
-		rec1.smap = Map.of();
+        rec1.smap = Map.of();
 
         String json = JsonWriter.objectToJson(ol);
         Object es = JsonReader.jsonToJava(json);
 
-        Assert.assertEquals(((Object) ol).getClass(), es.getClass());
+        assertEquals(((Object) ol).getClass(), es.getClass());
 
         List<Rec> recs = (List<Rec>) es;
-        Assert.assertEquals(ol.size(), recs.size());
+        assertEquals(ol.size(), recs.size());
 
-        Assert.assertEquals(ol.get(0).s, recs.get(0).s);
-        Assert.assertEquals(ol.get(0).i, recs.get(0).i);
-        Assert.assertEquals(ol.get(1).s, recs.get(1).s);
-        Assert.assertEquals(ol.get(1).i, recs.get(1).i);
+        assertEquals(ol.get(0).s, recs.get(0).s);
+        assertEquals(ol.get(0).i, recs.get(0).i);
+        assertEquals(ol.get(1).s, recs.get(1).s);
+        assertEquals(ol.get(1).i, recs.get(1).i);
 
-        Assert.assertEquals(recs.get(0), recs.get(2));
+        assertEquals(recs.get(0), recs.get(2));
 
-        Assert.assertEquals(ol.get(0).ilinks.getClass(), recs.get(0).ilinks.getClass());
-        Assert.assertEquals(ol.get(0).ilinks.size(), recs.get(0).ilinks.size());
-        Assert.assertEquals(ol.get(1).ilinks.getClass(), recs.get(1).ilinks.getClass());
-        Assert.assertEquals(ol.get(1).ilinks.size(), recs.get(1).ilinks.size());
+        assertEquals(ol.get(0).ilinks.getClass(), recs.get(0).ilinks.getClass());
+        assertEquals(ol.get(0).ilinks.size(), recs.get(0).ilinks.size());
+        assertEquals(ol.get(1).ilinks.getClass(), recs.get(1).ilinks.getClass());
+        assertEquals(ol.get(1).ilinks.size(), recs.get(1).ilinks.size());
     }
+
+    @Test
+    public void testMapListOf() {
+        Rec rec1 = new Rec("OneOrThree", 0);
+        Rec rec2 = new Rec("Two", 2);
+        //rec1.link = rec2;
+        //rec2.link = rec1;
+        rec1.ilinks = List.of(rec2, rec1);
+        rec2.ilinks = List.of();
+		//rec2.map = new HashMap<>(Map.of("Zwei", rec2));
+		rec2.smap = Map.of("Zwei", rec2);
+        List<Rec> ol = List.of(rec1, rec2, rec1);
+
+        String json = JsonWriter.objectToJson(ol);
+        List<Rec> recs = (List<Rec>) JsonReader.jsonToJava(json);
+
+        assertEquals(((Object) ol).getClass(), recs.getClass());
+
+        assertEquals(ol.size(), recs.size());
+
+        assertEquals(ol.get(0).s, recs.get(0).s);
+        assertEquals(ol.get(0).i, recs.get(0).i);
+        //assertEquals(recs.get(1), recs.get(0).link);
+        assertEquals(ol.get(1).s, recs.get(1).s);
+        assertEquals(ol.get(1).i, recs.get(1).i);
+        //assertEquals(recs.get(0), recs.get(1).link);
+
+        assertEquals(recs.get(0), recs.get(2));
+
+        assertEquals(ol.get(0).ilinks.getClass(), recs.get(0).ilinks.getClass());
+        assertEquals(ol.get(0).ilinks.size(), recs.get(0).ilinks.size());
+        assertEquals(ol.get(1).ilinks.getClass(), recs.get(1).ilinks.getClass());
+        assertEquals(ol.get(1).ilinks.size(), recs.get(1).ilinks.size());
+
+		assertEquals(ol.get(1).smap.size(), recs.get(1).smap.size());
+		assertEquals(ol.get(1).smap.getClass(), recs.get(1).smap.getClass());
+
+    }
+
+	@Test
+	public void fromTwistedJson() {
+		String a = "{ '@type':'java.util.ImmutableCollections$ListN', '@items':[ { '@id':1, '@type':'com.cedarsoftware.util.io.TestJDK9Immutable$Rec', 's':'OneOrThree', 'i':0, 'link':null, 'ilinks':{ '@type':'java.util.ImmutableCollections$List12', '@items':[ { '@ref':2 }, { '@ref':1 } ] }, 'mlinks':null, 'map':null }, { '@id':2, '@type':'com.cedarsoftware.util.io.TestJDK9Immutable$Rec', 's':'Two', 'i':2, 'link':null, 'ilinks':{ '@type':'java.util.ImmutableCollections$ListN' }, 'mlinks':null, 'map':{ '@type':'java.util.ImmutableCollections$Map1', 'Zwei':{ '@ref':1 } } }, { '@ref':1 } ] }";
+		Object gotten = JsonReader.jsonToJava(a.replace("'", "\""));
+
+		Rec rec1 = new Rec("OneOrThree", 0);
+        Rec rec2 = new Rec("Two", 2);
+
+		assertNotNull(gotten);
+		List<Rec> recs = (List<Rec>) gotten;
+
+		assertEquals(List.of(rec1, rec2, rec1).getClass(), recs.getClass());
+		assertEquals(List.of(rec1, rec2).getClass(), recs.get(0).ilinks.getClass());
+
+	}
+
+	@Test
+	public void paf() {
+		        Rec rec1 = new Rec("OneOrThree", 0);
+        Rec rec2 = new Rec("Two", 2);
+        //rec1.link = rec2;
+        //rec2.link = rec1;
+        rec1.ilinks = List.of(rec2, rec1);
+        rec2.ilinks = List.of();
+		rec2.pmap = new HashMap<>(Map.of(new Pair<>(1, 'a'), "start", new Pair<>(5, 'b'), "end"));
+		//rec2.map = new HashMap<>(Map.of("Zwei", rec2));
+		rec2.smap = Map.of("Zwei", rec2);
+        List<Rec> ol = List.of(rec1, rec2, rec1);
+
+//		ObjectGraphRover rover = new ObjectGraphRover(false, null, null);
+//		rover.driveIn(ol, new ObjectGraphRover.Visitor() {
+//			public boolean startsVisit(Object object, int depth, Accessor mayField, String context) {
+//				System.out.printf("%"+ depth + "s start %s %s %s%n", " ", context, mayField != null, object);
+//				return true;
+//			}
+//
+//			public void visitNext(Object object, int depth, Object prev, Object next) {
+//				if (prev != next)
+//					System.out.printf("%"+ depth + "s next %s %s %s %n", " ", object, prev, next);
+//			}
+//
+//			public void endVisit(Object object, int depth) {
+//				System.out.printf("%"+ depth + "s end %s %n", " ", object);
+//			}
+//		});
+	}
 }

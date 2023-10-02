@@ -77,6 +77,7 @@ import static java.lang.reflect.Modifier.isStatic;
  *         See the License for the specific language governing permissions and
  *         limitations under the License.*
  */
+@SuppressWarnings({ "rawtypes", "Convert2Diamond" })
 public class MetaUtils
 {
     private MetaUtils () {}
@@ -214,13 +215,7 @@ public class MetaUtils
     @SafeVarargs
     public static <T> List<T> listOf(T... items)
     {
-        if (items == null || items.length ==0)
-        {
-            return Collections.unmodifiableList(new ArrayList<>());
-        }
-        List<T> list = new ArrayList<>();
-        Collections.addAll(list, items);
-        return Collections.unmodifiableList(list);
+        return List.of(items);
     }
 
     /**
@@ -229,13 +224,7 @@ public class MetaUtils
     @SafeVarargs
     public static <T> Set<T> setOf(T... items)
     {
-        if (items == null || items.length ==0)
-        {
-            return (Set<T>) unmodifiableSet;
-        }
-        Set<T> set = new LinkedHashSet<>();
-        Collections.addAll(set, items);
-        return set;
+        return Set.of(items);
     }
 
     /**
@@ -243,31 +232,27 @@ public class MetaUtils
      */
     public static <K, V> Map<K, V> mapOf()
     {
-        return Collections.unmodifiableMap(new LinkedHashMap<>());
+        return Map.of();
     }
 
     public static <K, V> Map<K, V> mapOf(K k, V v)
     {
-        Map<K, V> map = new LinkedHashMap<>();
-        map.put(k, v);
-        return Collections.unmodifiableMap(map);
+        return Map.of(k, v);
     }
 
     public static <K, V> Map<K, V> mapOf(K k1, V v1, K k2, V v2)
     {
-        Map<K, V> map = new LinkedHashMap<>();
-        map.put(k1, v1);
-        map.put(k2, v2);
-        return Collections.unmodifiableMap(map);
+        return Map.of(k1, v1, k2, v2);
     }
 
     public static <K, V> Map<K, V> mapOf(K k1, V v1, K k2, V v2, K k3, V v3)
     {
-        Map<K, V> map = new LinkedHashMap<>();
-        map.put(k1, v1);
-        map.put(k2, v2);
-        map.put(k3, v3);
-        return Collections.unmodifiableMap(map);
+        return Map.of(k1, v1, k2, v2, k3, v3);
+    }
+
+    public static <K, V> Map<K, V> mapOf(K k1, V v1, K k2, V v2, K k3, V v3, K k4, V v4)
+    {
+        return Map.of(k1, v1, k2, v2, k3, v3, k4, v4);
     }
 
     /**
@@ -355,8 +340,8 @@ public class MetaUtils
         }
         catch (Exception e) {
             throw new JsonIoException("Error while attempting comparison of primitive types: " + source.getName() + " vs " + destination.getName(), e);
+            }
         }
-    }
 
     /**
      * Computes the inheritance distance between two classes/interfaces/primitive types.
@@ -408,11 +393,11 @@ public class MetaUtils
                 if (current.getSuperclass() != null) {
                     if (current.getSuperclass().equals(destination)) {
                         return distance;
-                    }
+            }
                     if (!visited.contains(current.getSuperclass())) {
                         queue.add(current.getSuperclass());
                         visited.add(current.getSuperclass());
-                    }
+        }
                 }
 
                 // Check interfaces
@@ -615,7 +600,7 @@ public class MetaUtils
         for (Map.Entry<Class<?>, Supplier<Object>> entry : ASSIGNABLE_CLASS_MAPPING.entrySet()) {
             if (entry.getKey().isAssignableFrom(argType)) {
                 return entry.getValue().get();
-            }
+        }
         }
 
         if (argType.isArray()) {
@@ -623,7 +608,7 @@ public class MetaUtils
         }
 
         return null;
-    }
+            }
 
     /**
      * Build a List the same size of parameterTypes, where the objects in the list are ordered
@@ -638,16 +623,16 @@ public class MetaUtils
         List<Object> answer = new ArrayList<>();
         if (parameterTypes == null || parameterTypes.length == 0) {
             return answer;
-        }
+            }
         List<Object> copyValues = new ArrayList<>(values);
 
         for (Parameter parameter : parameterTypes) {
             Object value = pickBestValue(parameter.getType(), copyValues);
             if (value == null) {
                 value = getArgForType(parameter.getType());
-            }
+                }
             answer.add(value);
-        }
+                }
         return answer;
     }
 
@@ -697,10 +682,10 @@ public class MetaUtils
                 minValue = array[i];
                 minIndex = i;
             }
-        }
+            }
 
         return minIndex;
-    }
+            }
 
     /**
      * Ideal class to hold all constructors for a Class, so that they are sorted in the most
@@ -717,10 +702,10 @@ public class MetaUtils
         {
             this.constructor = constructor;
             this.args = args;
-        }
+            }
 
         public int compareTo(ConstructorWithValues other)
-        {
+            {
             final int mods = constructor.getModifiers();
             final int otherMods = other.constructor.getModifiers();
 
@@ -730,7 +715,7 @@ public class MetaUtils
             }
             else if (isPublic(mods) && !isPublic(otherMods)) {
                 return -1;
-            }
+        }
 
             // Rule 2: Visibility: favor protected over private
             if (!isProtected(mods) && isProtected(otherMods)) {
@@ -738,7 +723,7 @@ public class MetaUtils
             }
             else if (isProtected(mods) && !isProtected(otherMods)) {
                 return -1;
-            }
+        }
 
             // Rule 3: Favor fewer null values being passed in.
             long score1 = scoreArgumentValues(args);
@@ -748,39 +733,39 @@ public class MetaUtils
             }
             else if (score1 > score2) {
                 return -1;
-            }
+        }
 
             // Rule 4: Favor by Class of parameter type alphabetically.  Mainly, distinguish so that no constructors
             // are dropped from the Set.  Although an "arbitrary" rule, it is consistent.
             String params1 = buildParameterTypeString(constructor);
             String params2 = buildParameterTypeString(other.constructor);
             return params1.compareTo(params2);
-        }
+    }
 
-        /**
+    /**
          * The more non-null arguments you have, the higher your score. 100 points for each non-null argument.
          * 50 points for each parameter.  So non-null values are twice as high (100 points versus 50 points) as
          * parameter "slots."
-         */
+     */
         private long scoreArgumentValues(Object[] args)
-        {
+    {
             if (args.length == 0) {
                 return 0L;
-            }
+        }
 
             int nonNull = 0;
 
             for (Object arg : args) {
                 if (arg != null) {
                     nonNull++;
-                }
             }
-
-            return nonNull * 100L + args.length * 50L;
         }
 
+            return nonNull * 100L + args.length * 50L;
+    }
+
         private String buildParameterTypeString(Constructor<?> constructor)
-        {
+    {
             Class<?>[] paramTypes = constructor.getParameterTypes();
             StringBuilder s = new StringBuilder();
 
@@ -788,11 +773,11 @@ public class MetaUtils
                 s.append(paramType.getName()).append(".");
             }
             return s.toString();
-        }
-    }
+            }
+            }
 
     public static String createCacheKey(Class<?> c, Collection<?> args)
-    {
+            {
         StringBuilder s = new StringBuilder(c.getName());
         for (Object o : args) {
             if (o == null) {
@@ -800,10 +785,10 @@ public class MetaUtils
             } else {
                 s.append(':');
                 s.append(o.getClass().getSimpleName());
-            }
-        }
+                }
+                }
         return s.toString();
-    }
+                }
 
     /**
      * Create a new instance of the passed in class c.  You can optionally pass in argument values that will
@@ -834,37 +819,37 @@ public class MetaUtils
         // JDK11+ remove the line below
         if (c.getName().equals("java.lang.ProcessImpl")) {
             throw new IllegalArgumentException("For security reasons, json-io does not allow instantiation of: java.lang.ProcessImpl");
-        }
+                }
 
         if (argumentValues == null) {
             argumentValues = new ArrayList<>();
-        }
+                }
 
         final String cacheKey = createCacheKey(c, argumentValues);
         Constructor<?> cachedConstructor = constructors.get(cacheKey);
         if (cachedConstructor == null)
-        {
+                {
             if (unmodifiableSortedMap.getClass().isAssignableFrom(c)) {
                 return new TreeMap<>();
-            }
+                }
             if (unmodifiableMap.getClass().isAssignableFrom(c)) {
                 return new LinkedHashMap<>();
-            }
+                }
             if (unmodifiableSortedSet.getClass().isAssignableFrom(c)) {
                 return new TreeSet<>();
-            }
+                }
             if (unmodifiableSet.getClass().isAssignableFrom(c)) {
                 return new LinkedHashSet<>();
-            }
+                }
             if (unmodifiableCollection.getClass().isAssignableFrom(c)) {
                 return new ArrayList<>();
-            }
+                }
             if (Collections.EMPTY_LIST.getClass().equals(c)) {
                 return Collections.emptyList();
-            }
+                }
             if (c.isInterface()) {
                 throw new JsonIoException("Cannot instantiate unknown interface: " + c.getName());
-            }
+                }
 
             final Constructor<?>[] declaredConstructors = c.getDeclaredConstructors();
             Set<ConstructorWithValues> constructorOrder = new TreeSet<>();
@@ -876,7 +861,7 @@ public class MetaUtils
                 Parameter[] parameters = constructor.getParameters();
                 List<Object> arguments = matchArgumentsToParameters(argValues, parameters);
                 constructorOrder.add(new ConstructorWithValues(constructor, arguments.toArray()));
-            }
+                }
 
             for (ConstructorWithValues constructorWithValues : constructorOrder) {
                 try {
@@ -889,12 +874,12 @@ public class MetaUtils
                 }
                 catch (Exception ignored) {
                 }
-            }
+                }
 
             Object o = tryUnsafeInstantiation(c);
             if (o != null) {
                 return o;
-            }
+                }
         } else {
             List<Object> argValues = new ArrayList<>(argumentValues);   // Copy to allow destruction
             Parameter[] parameters = cachedConstructor.getParameters();
@@ -904,33 +889,33 @@ public class MetaUtils
                 // Be nice to person debugging
                 Object o = cachedConstructor.newInstance(arguments.toArray());
                 return o;
-            }
+                }
             catch (Exception ignored) {
-            }
+                }
 
             Object o = tryUnsafeInstantiation(c);
             if (o != null) {
                 return o;
-            }
-        }
+                }
+                }
 
         throw new JsonIoException("Unable to instantiate: " + c.getName());
-    }
+                }
 
     // Try instantiation via unsafe (if turned on.  It is off by default.  Use
     // MetaUtils.setUseUnsafe(true) to enable it. This may result in heap-dumps
     // for e.g. ConcurrentHashMap or can cause problems when the class is not initialized,
     // that's why we try ordinary constructors first.
     private static Object tryUnsafeInstantiation(Class<?> c)
-    {
+                {
         if (useUnsafe) {
             try {
                 Object o = unsafe.allocateInstance(c);
                 return o;
-            }
+                }
             catch (Exception ignored) {
-            }
-        }
+                }
+                }
         return null;
     }
 
@@ -1048,14 +1033,14 @@ public class MetaUtils
                 }
                 else {
                     return new Date();
-                }
+            }
             }
             else if (c == BigInteger.class) {
                 return rhs == null ? BigInteger.ZERO : Readers.bigIntegerFrom(rhs);
             }
             else if (c == BigDecimal.class) {
                 return rhs == null ? BigDecimal.ZERO : Readers.bigDecimalFrom(rhs);
-            }
+        }
         }
         catch (Exception e) {
             String className = c == null ? "null" : c.getName();
@@ -1167,7 +1152,7 @@ public class MetaUtils
     {
         if (object.isAccessible()) {
             return;
-        }
+    }
 
         safelyIgnoreException(() -> {
             object.setAccessible(true);

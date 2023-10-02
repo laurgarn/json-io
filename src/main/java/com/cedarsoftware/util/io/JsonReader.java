@@ -67,6 +67,7 @@ import static com.cedarsoftware.util.io.JsonObject.ITEMS;
  *         See the License for the specific language governing permissions and
  *         limitations under the License.
  */
+@SuppressWarnings({ "rawtypes", "unchecked" })
 public class JsonReader implements Closeable
 {
     /** Once we've fully moved to read options, these static finals can be deleted **/
@@ -683,7 +684,7 @@ public class JsonReader implements Closeable
     public static <T> T toMaps(String json, ReadOptions readOptions) {
         if (json == null) {
             return null;
-        }
+    }
         return toMaps(new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8)), readOptions);
     }
 
@@ -1077,19 +1078,19 @@ public class JsonReader implements Closeable
             root = this.resolver.getReferences().get(root);
         }
 
-        T graph;
+            T graph;
         if (root.isFinished) {   // Called on a JsonObject that has already been converted
-            graph = (T) root.target;
+                graph = (T) root.target;
         } else {
-            Object instance = resolver.createInstance(hint, root);
+                Object instance = resolver.createInstance(hint, root);
             if (root.isFinished) {   // Factory method instantiated and completely loaded the object.
-                graph = (T) instance;
+                    graph = (T) instance;
             } else {
                 graph = resolver.convertMapsToObjects(root);
+                }
             }
+            return graph;
         }
-        return graph;
-    }
 
     /**
      * This method converts a root Map, (which contains nested Maps
@@ -1109,7 +1110,7 @@ public class JsonReader implements Closeable
             MetaUtils.safelyIgnoreException(() -> close());
             if (e instanceof JsonIoException) {
                 throw (JsonIoException) e;
-            }
+    }
             throw new JsonIoException(getErrorMessage(e.getMessage()), e);
         } finally {
             //  In case we decide to only go with Hinted Types (passing class in here,

@@ -414,7 +414,7 @@ public class ObjectResolver extends Resolver
      */
     protected void traverseCollection(final Deque<JsonObject> stack, final JsonObject jsonObj)
     {
-        final String className = jsonObj.type;
+        final String className = jsonObj.getType();
         final Object[] items = jsonObj.getArray();
         if (items == null || items.length == 0)
         {
@@ -520,7 +520,7 @@ public class ObjectResolver extends Resolver
 
     public static void reconcileCollection(JsonObject jsonObj, Collection col)
     {
-        final String className = jsonObj.type;
+        final String className = jsonObj.getType();
         final boolean isImmutable = className != null && className.startsWith("java.util.Immutable");
         
         if (!isImmutable)
@@ -544,6 +544,7 @@ public class ObjectResolver extends Resolver
             }
             else
             {
+				System.out.printf("Leaving List opened d:%d c:%d", jsonObj.line, jsonObj.col);
                 jsonObj.target = col;
             }
         }

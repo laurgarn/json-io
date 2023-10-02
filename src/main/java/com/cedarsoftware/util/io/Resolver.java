@@ -491,7 +491,7 @@ public abstract class Resolver
 
         if (classFactory == null) {
             return null;
-        }
+            }
 
         Object target = classFactory.newInstance(c, jsonObj);
 
@@ -503,9 +503,9 @@ public abstract class Resolver
             return jsonObj.setFinishedTarget(target, true);
         }
 
-        jsonObj.setTarget(target);
-        return target;
-    }
+                jsonObj.setTarget(target);
+            return target;
+        }
 
     protected Object coerceCertainTypes(String type)
     {
@@ -532,13 +532,13 @@ public abstract class Resolver
         if (items == null || items.length == 0)
         {
             if (enumClass != null) {
-                return EnumSet.noneOf(enumClass);
+				return EnumSet.noneOf(enumClass);
             } else {
-                return EnumSet.noneOf(MetaUtils.Dumpty.class);
-            }
+				return EnumSet.noneOf(MetaUtils.Dumpty.class);
+			}
         } else if (enumClass == null) {
-            throw new JsonIoException("Could not figure out Enum of the not empty set " + jsonObj);
-        }
+			throw new JsonIoException("Could not figure out Enum of the not empty set " + jsonObj);
+		}
 
         EnumSet enumSet = null;
         for (Object item : items)
@@ -572,6 +572,10 @@ public abstract class Resolver
      */
     protected void patchUnresolvedReferences()
     {
+		int fieldPatchedCount = 0;
+		int listPatchedCount = 0;
+		int arrayPatchedCount = 0;
+		int otherPatchedCollection = 0;
         Iterator i = unresolvedRefs.iterator();
         while (i.hasNext())
         {
@@ -592,6 +596,7 @@ public abstract class Resolver
                         {
                             list = MetaUtils.listOf(list.toArray());
                             ref.referencingObj.target = list;
+							listPatchedCount += 1;
                         }
                     }
                 }
@@ -607,11 +612,13 @@ public abstract class Resolver
                     {
                         // Add element (since it was not indexable, add it to collection)
                         col.add(objReferenced.target);
+						otherPatchedCollection += 1;
                     }
                 }
                 else
                 {
                     Array.set(objToFix, ref.index, objReferenced.target);        // patch array element here
+					arrayPatchedCount += 1;
                 }
             }
             else
@@ -622,6 +629,7 @@ public abstract class Resolver
                     try
                     {
                         MetaUtils.setFieldValue(field, objToFix, objReferenced.target);    // patch field here
+						fieldPatchedCount += 1;
                     }
                     catch (Exception e)
                     {
@@ -631,6 +639,8 @@ public abstract class Resolver
             }
         }
         unresolvedRefs.clear();
+		//System.out.printf("Contained fixed list:%d array:%d fields:%d other:%d %n",
+		//	listPatchedCount, arrayPatchedCount, fieldPatchedCount, otherPatchedCollection);
     }
 
     /**
@@ -647,6 +657,7 @@ public abstract class Resolver
      */
     protected void rehashMaps()
     {
+		//System.out.printf("Rehash %d maps%n", prettyMaps.size());
         final boolean useMapsLocal = getReadOptions().isUsingMaps();
         ;
         for (Object[] mapPieces : prettyMaps)
@@ -669,12 +680,12 @@ public abstract class Resolver
                 jObj.clear();
             }
 
-            int j = 0;
+                int j = 0;
 
-            while (javaKeys != null && j < javaKeys.length)
-            {
-                map.put(javaKeys[j], javaValues[j]);
-                j++;
+                while (javaKeys != null && j < javaKeys.length)
+                {
+                    map.put(javaKeys[j], javaValues[j]);
+                    j++;
             }
         }
     }

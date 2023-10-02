@@ -375,11 +375,11 @@ public class JsonObject extends LinkedHashMap<Object, Object>
         if (containsKey(ITEMS))
         {
             return getArray().length;
-        }
+    }
         else if (containsKey(REF))
-        {
+    {
             return 0;
-        }
+    }
 
         return super.size();
     }
@@ -396,16 +396,16 @@ public class JsonObject extends LinkedHashMap<Object, Object>
                 Object elem = Array.get(array, j);
                 hashCode += elem == null ? 0 : elem.hashCode();
             }
-        }
-        else
-        {
+            }
+            else
+            {
             hashCode = super.hashCode();
-        }
+            }
         return hashCode;
-    }
+        }
 
     public int hashCode()
-    {
+        {
         if (hash == null)
         {
             if (isArray() || isCollection())
@@ -418,7 +418,7 @@ public class JsonObject extends LinkedHashMap<Object, Object>
             }
         }
         return hash;
-    }
+        }
 
     public boolean equals(Object other)
     {
