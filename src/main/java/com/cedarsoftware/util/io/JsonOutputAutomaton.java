@@ -175,7 +175,7 @@ public class JsonOutputAutomaton {
 		switch (move) {
 			case V:
 				doCommitLastKey();
-				doString(value, ':');
+				doString(value, ':', true);
 				setCurrentState(State.WNK);
 				return true;
 			case OS:
@@ -202,7 +202,7 @@ public class JsonOutputAutomaton {
 	private boolean fromWaitingInArray(Move move, String str, boolean isFirst) {
 		switch (move) {
 			case V:
-				doString(str, isFirst ? null : ',');
+				doString(str, isFirst ? null : ',', true);
 				setCurrentState(State.GV);
 				return true;
 			case AE:
@@ -268,21 +268,182 @@ public class JsonOutputAutomaton {
 		rollbackableSep = character;
 	}
 
-	private void doString(String key, Character c) {
+	private void doString(String key, Character c, boolean allowsUnquoted) {
 		try {
-			if (c != null) {
-				writer.write(c);
-				if (c == ',') {
-					mayIndent();
-				}
-			} else {
-				mayIndent();
+            if (c == null) {
+                mayIndent();
+            } else {
+                writer.write(c);
+                if (c == ',') {
+                    mayIndent();
+                }
 			}
-			JsonWriter.writeJsonUtf8String(key, writer);
+
+			if (allowsUnquoted && !needsQuote(key, true)) {
+				writer.write(key);
+			} else {
+				String escaped = escapedUtf8String(key);
+				writer.write('"');
+                writer.write(escaped);
+				writer.write('"');
+            }
 		} catch (IOException e) {
 			throw new RuntimeException(e);
 		}
 	}
+
+	public static boolean needsQuote(String s, boolean allowsQuoted) {
+        final int len = s.length();
+		if (len == 0)
+			return true;
+		char fc = s.charAt(0);
+		switch (fc) {
+			case 'n':
+				return !s.equals("null");
+			case 't':
+				return !s.equals("true");
+			case 'f':
+				return !s.equals("false");
+			case '0':
+			case '1':
+			case '2':
+			case '3':
+			case '4':
+			case '5':
+			case '6':
+			case '7':
+			case '8':
+			case '9':
+				return !isJsonNumber(s);
+			case '"':
+				return !allowsQuoted || len < 2 || s.charAt(len - 1) != '"'
+						|| needsQuote(s.substring(1, len -2), false);
+		}
+		return true;
+	}
+
+	public static boolean isJsonNumber(String s) {
+		if (s == null)
+			return false;
+
+		// 0:start 1:got_sign 2:first_zero 3:got_not_zero 4:got_dot 5:got_after_dot 6:got_exp 7:got_after_exp
+		final int len = s.length();
+		int state = 0;
+		for (int i = 0; i < len; i++) {
+			char c = s.charAt(i);
+			switch (c) {
+				case '-':
+					if (state == 0)
+						state = 1;
+					else if (state == 6)
+						state = 7;
+					else
+						return false;
+				case '0':
+					if (state == 2)
+						return false;
+					if (state == 0)
+						state = 2;
+					break;
+				case '.':
+					if (state != 2 && state != 3)
+						return false;
+					state = 4;
+					break;
+				case '1':
+				case '2':
+				case '3':
+				case '4':
+				case '5':
+				case '6':
+				case '7':
+				case '8':
+				case '9':
+					if (state == 2)
+						return false;
+					if (state == 0 || state == 1)
+						state = 3;
+					else if (state == 4)
+						state = 5;
+					else if (state == 7)
+						state = 8;
+					break;
+				case 'e':
+				case 'E':
+                    if (state != 3 && state != 5)
+                        return false;
+					state = 6;
+					break;
+                default:
+					return false;
+			}
+		}
+
+		switch (state) {
+			case 0:
+			case 1:
+			case 4:
+			case 6:
+			case 7:
+				return false;
+	}
+		return true;
+	}
+
+	/**
+	 * Write out special characters "\b, \f, \t, \n, \r", as such, backslash as \\
+	 * quote as \" and values less than an ASCII space (20hex) as "\\u00xx" format,
+	 * characters in the range of ASCII space to a '~' as ASCII, and anything higher in UTF-8.
+	 *
+	 * @param s String to be written in UTF-8 format on the output stream.
+	 * @throws IOException if an error occurs writing to the output stream.
+	 */
+    public static String escapedUtf8String(String s)
+    {
+        final int len = s.length();
+        StringBuilder sb = new StringBuilder(len);
+
+        for (int i = 0; i < len; i++)
+        {
+            char c = s.charAt(i);
+
+            if (c < ' ')
+            {    // Anything less than ASCII space, write either in \\u00xx form, or the special \t, \n, etc. form
+                switch (c)
+                {
+                    case '\b':
+                        sb.append("\\b");
+                        break;
+                    case '\f':
+                        sb.append("\\f");
+                        break;
+                    case '\n':
+                        sb.append("\\n");
+                        break;
+                    case '\r':
+                        sb.append("\\r");
+                        break;
+                    case '\t':
+                        sb.append("\\t");
+                        break;
+                    default:
+                        sb.append(String.format("\\u%04X", (int) c));
+                        break;
+                }
+            }
+            else if (c == '\\' || c == '"')
+            {
+                sb.append('\\');
+                sb.append(c);
+            }
+            else
+            {   // Anything else - write in UTF-8 form (multi-byte encoded) (OutputStreamWriter is UTF-8)
+                sb.append(c);
+            }
+        }
+
+        return sb.toString();
+    }
 
 	private void doObjectEnd(boolean first) {
 		try {
@@ -308,7 +469,7 @@ public class JsonOutputAutomaton {
 
 	private void doCommitLastKey() {
 		if (rollbackableKey != null) {
-			doString(rollbackableKey, rollbackableSep);
+			doString(rollbackableKey, rollbackableSep, false);
 			rollbackableKey = null;
 			rollbackableSep = null;
 		}

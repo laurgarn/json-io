@@ -160,11 +160,7 @@ public class ObjectWriter
                 }
                 else if (MetaUtils.isLogicalPrimitive(object.getClass()))
                 {
-                    if (key != null)
-                    {
-                        autom.emitKey(key);
-                    }
-                    // ?showtype ?
+                    return writesPrimitive(obj, key, autom, config);
                 }
                 else
                 {
@@ -243,6 +239,10 @@ public class ObjectWriter
     {
         assert obj != null;
 
+        if (key != null) {
+            autom.emitKey(key);
+        }
+
         boolean allowsNanAndInfinity = config.isSkippingNullFields();
 
         boolean showType = true;
@@ -253,7 +253,7 @@ public class ObjectWriter
 
         if (obj instanceof Character)
         {
-            autom.emitValue(escapedUtf8String(String.valueOf(obj)));
+            autom.emitValue(String.valueOf(obj));
         }
 //        else if (obj instanceof Long && config.isWritingLongsAsStrings())
 //        {
@@ -286,118 +286,6 @@ public class ObjectWriter
         }
 
         return emptyterator();
-    }
-
-        /**
-     * Write out special characters "\b, \f, \t, \n, \r", as such, backslash as \\
-     * quote as \" and values less than an ASCII space (20hex) as "\\u00xx" format,
-     * characters in the range of ASCII space to a '~' as ASCII, and anything higher in UTF-8.
-     *
-     * @param s      String to be written in UTF-8 format on the output stream.
-     * @throws IOException if an error occurs writing to the output stream.
-     */
-    public static String escapedUtf8String(String s)
-    {
-        final int len = s.length();
-        StringBuilder sb = new StringBuilder(len);
-        sb.append('"');
-
-        for (int i = 0; i < len; i++)
-        {
-            char c = s.charAt(i);
-
-            if (c < ' ')
-            {    // Anything less than ASCII space, write either in \\u00xx form, or the special \t, \n, etc. form
-                switch (c)
-                {
-                    case '\b':
-                        sb.append("\\b");
-                        break;
-                    case '\f':
-                        sb.append("\\f");
-                        break;
-                    case '\n':
-                        sb.append("\\n");
-                        break;
-                    case '\r':
-                        sb.append("\\r");
-                        break;
-                    case '\t':
-                        sb.append("\\t");
-                        break;
-                    default:
-                        sb.append(String.format("\\u%04X", (int) c));
-                        break;
-                }
-            }
-            else if (c == '\\' || c == '"')
-            {
-                sb.append('\\');
-                sb.append(c);
-            }
-            else
-            {   // Anything else - write in UTF-8 form (multi-byte encoded) (OutputStreamWriter is UTF-8)
-                sb.append(c);
-            }
-        }
-        sb.append('"');
-
-        return sb.toString();
-    }
-
-    /**
-     * Write out special characters "\b, \f, \t, \n, \r", as such, backslash as \\
-     * quote as \" and values less than an ASCII space (20hex) as "\\u00xx" format,
-     * characters in the range of ASCII space to a '~' as ASCII, and anything higher in UTF-8.
-     *
-     * @param s      String to be written in UTF-8 format on the output stream.
-     * @param output Writer to which the UTF-8 string will be written to
-     * @throws IOException if an error occurs writing to the output stream.
-     */
-    public static void writeJsonUtf8String(String s, final Writer output) throws IOException
-    {
-        output.write('\"');
-        final int len = s.length();
-
-        for (int i = 0; i < len; i++)
-        {
-            char c = s.charAt(i);
-
-            if (c < ' ')
-            {    // Anything less than ASCII space, write either in \\u00xx form, or the special \t, \n, etc. form
-                switch (c)
-                {
-                    case '\b':
-                        output.write("\\b");
-                        break;
-                    case '\f':
-                        output.write("\\f");
-                        break;
-                    case '\n':
-                        output.write("\\n");
-                        break;
-                    case '\r':
-                        output.write("\\r");
-                        break;
-                    case '\t':
-                        output.write("\\t");
-                        break;
-                    default:
-                        output.write(String.format("\\u%04X", (int) c));
-                        break;
-                }
-            }
-            else if (c == '\\' || c == '"')
-            {
-                output.write('\\');
-                output.write(c);
-            }
-            else
-            {   // Anything else - write in UTF-8 form (multi-byte encoded) (OutputStreamWriter is UTF-8)
-                output.write(c);
-            }
-        }
-        output.write('\"');
     }
 
     public void flush()
