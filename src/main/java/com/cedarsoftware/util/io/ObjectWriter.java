@@ -1,9 +1,9 @@
 package com.cedarsoftware.util.io;
 
 import com.cedarsoftware.util.io.sidesiterator.*;
+import com.cedarsoftware.util.reflect.Accessor;
 
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -28,15 +28,25 @@ public class ObjectWriter
         }
     }
 
-    public interface Visitor
+    public interface CustomWriter
     {
-        SidesIterator startsVisit(Object object, int depth, String key);
+        default SidesIterator startWriteOn(Object objectToWrite, JsonOutputAutomaton automaton, WriteOptions options)
+        {
+            return Emptyterator.instance;
+        }
+
+        default void endWrite(Object objectToWrite) { }
+    }
+
+    interface Visitor
+    {
+        SidesIterator startsVisit(Object object, int depth, String key, Accessor accessor, Object context);
 
         default void visitNext(Object object, int depth, Object prevContext, Object nextContext)
         {
         }
 
-        default void endVisit(Object object, int depth)
+        default void endVisit(Object object, int depth, SidesIterator it)
         {
         }
     }
@@ -53,45 +63,22 @@ public class ObjectWriter
         }
     }
 
-    private final RefsAccounter refsAccounter;
-    private final Writer out;
+    private final WriteOptions config;
 
-    public ObjectWriter(Writer out,
-                        boolean leastDeep)
+    public ObjectWriter(WriteOptions config)
     {
-        if (out == null)
-        {
-            throw new NullPointerException("out writer may not be null");
-        }
-
-        this.out = out;
-
-        refsAccounter = new RefsAccounter(leastDeep);
+        if (config == null)
+            config = WriterContext.instance().getWriteOptions();
+        if (config == null)
+            config = new WriteOptionsBuilder().build();
+        this.config = config;
     }
 
-    /**
-     * @param item Object (root) to serialized to JSON String.
-     * @return String of JSON format representing complete object graph rooted by item.
-     * @see JsonWriter#objectToJson(Object, java.util.Map)
-     */
     public static String objectToJson(Object item)
     {
         return objectToJson(item, null);
     }
 
-    /**
-     * Convert a Java Object to a JSON String.
-     *
-     * @param item         Object to convert to a JSON String.
-     * @param optionalArgs (optional) Map of extra arguments indicating how dates are formatted,
-     *                     what fields are written out (optional).  For Date parameters, use the public static
-     *                     DATE_TIME key, and then use the ISO_DATE or ISO_DATE_TIME indicators.  Or you can specify
-     *                     your own custom SimpleDateFormat String, or you can associate a SimpleDateFormat object,
-     *                     in which case it will be used.  This setting is for both java.util.Date and java.sql.Date.
-     *                     If the DATE_FORMAT key is not used, then dates will be formatted as longs.  This long can
-     *                     be turned back into a date by using 'new Date(longValue)'.
-     * @return String containing JSON representation of passed in object root.
-     */
     public static String objectToJson(Object item, Map<String, Object> optionalArgs)
     {
         try
@@ -108,206 +95,383 @@ public class ObjectWriter
         }
     }
 
-    /**
-     * Write the passed in Java object in JSON format.
-     *
-     * @param obj Object any Java Object or JsonObject.
-     */
-    public void write(Object obj)
+    public void write(Object obj, Writer out)
     {
-        driveIn(obj, (object, depth, key) -> refsAccounter.recordOneUse(object, depth) ? null : emptyterator());
+        final boolean leastDeep = true; // TODO from config
+        RefsAccounter refsAccounter = new RefsAccounter(leastDeep);
 
-        WriteOptions config = WriterContext.instance().getWriteOptions();
+        driveIn(obj, (object, depth, key, accessor, context) -> refsAccounter.recordOneUse(object, depth) ? null : emptyterator());
 
-        JsonOutputAutomaton autom = new JsonOutputAutomaton(out, false, null);
+        String indentChunks = "  "; // TODO from config
+        JsonOutputAutomaton autom = new JsonOutputAutomaton(out, true, indentChunks);
 
-        Visitor writingVisitor = new Visitor()
+        driveIn(obj, new OneGoWriter(config, refsAccounter, autom));
+    }
+
+
+    static class OneGoWriter implements Visitor {
+
+        private final WriteOptions config;
+        private final RefsAccounter refsAccounter;
+        private final JsonOutputAutomaton autom;
+
+        OneGoWriter(
+                WriteOptions config,
+                RefsAccounter refsAccounter,
+                JsonOutputAutomaton autom
+        ) {
+
+            this.config = config;
+            this.refsAccounter = refsAccounter;
+            this.autom = autom;
+        }
+
+        public SidesIterator startsVisit(Object object, int depth, String key, Accessor accessor, Object context)
         {
-            public SidesIterator startsVisit(Object object, int depth, String key)
+            SidesIterator ret = onNull(object, key);
+            if (ret != null) return ret;
+
+            if (key != null)
             {
-                if (object == null)
-                {
-                    return writesNull(key, autom, config);
-                }
-                else if (object instanceof JsonObject)
-                {
-                    // LGA probably to be handled by fallbackSequence
-                    // symmetric support for writing Map of Maps representation back as equivalent JSON format.
-                    JsonObject jObj = (JsonObject) object;
-                    if (jObj.isArray())
-                    {
+                // possible name rebinding thru accessor, as with Jackson annotations ?
+                autom.emitKey(key);
+            }
+
+            ret = onJsonObject(object);
+            if (ret != null) return ret;
+
+            ret = onDelegatePrimitive(object, accessor);
+            if (ret != null) return ret;
+
+            ret = onPrimitive(object, accessor, context);
+            if (ret != null) return ret;
+
+            final Class<?> c = object.getClass();
+            boolean showsType;
+            if (config.isNeverShowingType()) {
+                showsType = false;
+            }
+            else if (config.isAlwaysShowingType()) {
+                showsType = true;
+            }
+            else {
+                showsType = accessor != null && !Objects.equals(accessor.getType(), object.getClass());
+            }
+
+            Long codedId = refsAccounter.getCodedId(object, depth);
+            boolean usesAKey = codedId != null || showsType;
+            if (usesAKey)
+            {
+                autom.emitObjectStart();
+            }
+
+            if (codedId != null && codedId > 0)
+            {
+                autom.emitKey(config.isUsingShortMetaKeys() ? "@r" : "@ref");
+                autom.emitValue(codedId.toString());
+                //autom.emitObjectEnd(); // done by endVisit
+                return emptyterator();
+            }
+
+            if (codedId != null)
+            {
+                autom.emitKey(config.isUsingShortMetaKeys() ? "@i" : "@id");
+                autom.emitValue(Objects.toString(-codedId));
+            }
+
+            if (showsType)
+            {
+                autom.emitKey(config.isUsingShortMetaKeys() ? "@t" : "@type");
+                String typeName = c.getName();
+                String shortName = getSubstituteTypeNameIfExists(typeName, config);
+                autom.emitValue(shortName != null ? shortName : typeName);
+            }
+
+            ret = onDelegateStructured(object, accessor, usesAKey);
+            if (ret != null) return ret;
+
+            ret = onArray(object, usesAKey);
+            if (ret != null) return ret;
+
+            ret = onMap(object, usesAKey);
+            if (ret != null) return ret;
+
+            ret = onEnumSet(object, usesAKey);
+            if (ret != null) return ret;
+
+            ret = onCollection(object, usesAKey);
+            if (ret != null) return ret;
+
+            return fieldByField(object, usesAKey);
+        }
+
+        SidesIterator onNull(Object object, String key)
+        {
+            if (object != null) {
+                return null;
+            }
+
+            if (key != null && config.isSkippingNullFields()) {
+                return emptyterator();
+            }
+
+            if (key != null)
+            {
+                autom.emitKey(key);
+            }
+            autom.emitValue("null");
+
+            return emptyterator();
+        }
+
+        SidesIterator onJsonObject(Object object)
+        {
+            if (!(object instanceof JsonObject))
+                return null;
+
+            // LGA probably to be handled by fallbackSequence
+            // symmetric support for writing Map of Maps representation back as equivalent JSON format.
+            JsonObject jObj = (JsonObject) object;
+            if (jObj.isArray())
+            {
 //                        writeJsonObjectArray(jObj, showType);
-                    }
-                    else if (jObj.isCollection())
-                    {
+            }
+            else if (jObj.isCollection())
+            {
 //                        writeJsonObjectCollection(jObj, showType);
-                    }
-                    else if (jObj.isMap())
-                    {
+            }
+            else if (jObj.isMap())
+            {
 //                        if (!writeJsonObjectMapWithStringKeys(jObj, showType))
 //                        {
 //                            writeJsonObjectMap(jObj, showType);
 //                        }
-                    }
-                    else
-                    {
+            }
+            else
+            {
 //                        writeJsonObjectObject(jObj, showType);
-                    }
-                }
-                else if (false)
+            }
+
+            return null; // TODO
+        }
+
+        private SidesIterator onDelegatePrimitive(Object object, Accessor accessor)
+        {
+            return null;
+        }
+
+        private SidesIterator onDelegateStructured(Object object, Accessor accessor, boolean usesAKey)
+        {
+            return null;
+        }
+
+        SidesIterator onPrimitive(Object object, Accessor accessor, Object context)
+        {
+            if (!MetaUtils.isLogicalPrimitive(object.getClass()))
+            {
+                return null;
+            }
+
+            boolean allowsNanAndInfinity = config.isSkippingNullFields();
+
+            boolean showType = true;
+            if (config.isNeverShowingType())
+            {
+                showType = false;
+            }
+
+            if (object instanceof Character)
+            {
+                autom.emitValue(String.valueOf(object));
+            }
+            else if (object instanceof Long && config.isWritingLongsAsStrings())
+            {
+                if (showType)
                 {
-                    // delegation / plugins for primitive like
-                }
-                else if (MetaUtils.isLogicalPrimitive(object.getClass()))
-                {
-                    return writesPrimitive(obj, key, autom, config);
+                    autom.emitObjectStart();
+                    autom.emitKey(config.isUsingShortMetaKeys() ? "@t" : "@type");
+                    autom.emitValue("long");
+                    autom.emitKey("value");
+                    autom.emitValue(object.toString());
+                    autom.emitObjectEnd();
                 }
                 else
                 {
-                    Long codedId = refsAccounter.getCodedId(object, depth);
-                    if (codedId != null && codedId > 0)
+                    autom.emitValue(object.toString());
+                }
+            }
+            else if (!allowsNanAndInfinity && object instanceof Double && (Double.isNaN((Double) object) || Double.isInfinite((Double) object)))
+            {
+                autom.emitValue("null");
+            }
+            else if (!allowsNanAndInfinity && object instanceof Float && (Float.isNaN((Float) object) || Float.isInfinite((Float) object)))
+            {
+                autom.emitValue("null");
+            }
+            else
+            {
+                autom.emitValue(object.toString());
+            }
+
+            return emptyterator();
+        }
+
+        SidesIterator onArray(Object object, boolean usesAKey)
+        {
+            if (!object.getClass().isArray())
+            {
+                return null;
+            }
+
+            if (usesAKey)
+            {
+                autom.emitKey(config.isUsingShortMetaKeys() ? "@e" : "@items");
+            }
+            autom.emitArrayStart();
+
+            return new ArrayIterator(object, usesAKey);
+        }
+
+        SidesIterator onMap(Object object, boolean usesAKey)
+        {
+            if (!Map.class.isAssignableFrom(object.getClass()))
+            {
+                return null;
+            }
+
+            try
+            {
+                Map<?, ?> map = (Map<?, ?>) object;
+                boolean hasToUseParalleleSequences = map.keySet().stream().anyMatch(ObjectWriter::problematicAsKey);
+                if (hasToUseParalleleSequences)
+                {
+                    KeysThenValuesMapIterator ret = new KeysThenValuesMapIterator(map);
+                    if (!usesAKey)
                     {
                         autom.emitObjectStart();
-                        autom.emitKey(config.isUsingShortMetaKeys() ? "@r" : "@ref");
-                        autom.emitValue(codedId.toString());
-                        autom.emitObjectEnd();
+                    }
+//                    autom.emitKey(config.isUsingShortMetaKeys() ? "@k" : "@keys");
+//                    autom.emitArrayStart();
 
-                        return emptyterator();
-                    }
-
-                    if (codedId == null)
-                    {
-                        // code alignement
-                    }
-                    else if (codedId > 0)
-                    {
-                        // just ref
-                    }
-                    else
-                    {
-                        // drop id too
-                    }
+                    return ret;
                 }
+                else
+                {
+                    StringKeyedMapIterator ret = new StringKeyedMapIterator((Map<String, ?>) map);
+                    if (!usesAKey)
+                    {
+                        autom.emitObjectStart();
+                    }
 
-                return emptyterator();
+                    return ret;
+                }
+            }
+            catch (UnsupportedOperationException e)
+            {
+                // Some kind of Map that does not support .entrySet() - some Maps throw UnsupportedOperation for
+                // this API.  Do not attempt any further tracing of references.  Likely a ClassLoader field or
+                // something unusual like that.
             }
 
-            public void visitNext(Object object, int depth, Object prevContext, Object nextContext)
+            return emptyterator();
+        }
+
+        SidesIterator onEnumSet(Object object, boolean usesAKey)
+        {
+            if (!(object instanceof EnumSet))
             {
-                if (prevContext == nextContext)
-                    return;
-                if (prevContext != null)
-                    autom.emitEnd();
-                // according to next context, opens either { or [
+                return null;
             }
 
-            public void endVisit(Object object, int depth)
+            autom.emitArrayStart();
+
+            return new Proxyterator(((Collection<?>) object).iterator(), usesAKey);
+        }
+
+        SidesIterator onCollection(Object object, boolean usesAKey)
+        {
+            if (!(object instanceof Collection))
             {
-                if (null == object)
-                {
-                    return;
-                }
+                return null;
+            }
 
-                // delegation / plugins
+            if (usesAKey)
+            {
+                autom.emitKey(config.isUsingShortMetaKeys() ? "@e" : "@items");
+            }
+            autom.emitArrayStart();
 
-                if (MetaUtils.isLogicalPrimitive(object.getClass()))
-                {
-                    return;
-                }
+            return new Proxyterator(((Collection<?>) object).iterator(), usesAKey);
+        }
 
+        SidesIterator fieldByField(Object object, boolean usesAKey)
+        {
+            if (!usesAKey)
+            {
+                autom.emitObjectStart();
+            }
+
+            return new PojoReflecionIterator(object);
+        }
+
+        public void visitNext(Object object, int depth, Object prevContext, Object nextContext)
+        {
+            if (prevContext == nextContext)
+                return;
+
+            if (prevContext != null)
+                autom.emitEnd();
+
+            if (nextContext == KeysThenValuesMapIterator.KEY_CONTEXT)
+            {
+                autom.emitKey(config.isUsingShortMetaKeys() ? "@k" : "@keys");
+                autom.emitArrayStart();
+            }
+
+            if (nextContext == KeysThenValuesMapIterator.VALUE_CONTEXT) {
+                autom.emitKey(config.isUsingShortMetaKeys() ? "@e" : "@items");
+                autom.emitArrayStart();
+            }
+
+            // according to next context, opens either { or [
+        }
+
+        public void endVisit(Object object, int depth, SidesIterator it)
+        {
+            if (null == object)
+            {
+                return;
+            }
+
+            // delegation / plugins
+
+            if (MetaUtils.isLogicalPrimitive(object.getClass()))
+            {
+                return;
+            }
+
+            boolean hasToEmitTwoEnds = false;
+            if (it instanceof Proxyterator) {
+                hasToEmitTwoEnds = ((Proxyterator) it).isTwoDeep();
+            } else if (it instanceof ArrayIterator) {
+                hasToEmitTwoEnds = ((ArrayIterator) it).isTwoDeep();
+            }
+
+            if (hasToEmitTwoEnds) {
                 autom.emitEnd();
             }
-        };
-        driveIn(obj, writingVisitor);
-    }
 
-    private static SidesIterator writesNull(String key, JsonOutputAutomaton autom, WriteOptions config)
-    {
-        if (key == null)
-        {
-            autom.emitValue("null");
-        }
-        else if (!config.isSkippingNullFields())
-        {
-            autom.emitKey(key);
-            autom.emitValue("null");
-        }
-        return emptyterator();
-    }
-
-    private static SidesIterator writesPrimitive(Object obj, String key, JsonOutputAutomaton autom, WriteOptions config)
-    {
-        assert obj != null;
-
-        if (key != null) {
-            autom.emitKey(key);
-        }
-
-        boolean allowsNanAndInfinity = config.isSkippingNullFields();
-
-        boolean showType = true;
-        if (config.isNeverShowingType())
-        {
-            showType = false;
-        }
-
-        if (obj instanceof Character)
-        {
-            autom.emitValue(String.valueOf(obj));
-        }
-//        else if (obj instanceof Long && config.isWritingLongsAsStrings())
-//        {
-//            if (showType)
-//            {
-//                out.write(config.isUsingShortMetaKeys() ? "{\"@t\":\"" : "{\"@type\":\"");
-//                out.write(getSubstituteTypeName("long"));
-//                out.write("\",\"value\":\"");
-//                out.write(obj.toString());
-//                out.write("\"}");
-//            }
-//            else
-//            {
-//                out.write('"');
-//                out.write(obj.toString());
-//                out.write('"');
-//            }
-//        }
-        else if (!allowsNanAndInfinity && obj instanceof Double && (Double.isNaN((Double) obj) || Double.isInfinite((Double) obj)))
-        {
-            autom.emitValue("null");
-        }
-        else if (!allowsNanAndInfinity && obj instanceof Float && (Float.isNaN((Float) obj) || Float.isInfinite((Float) obj)))
-        {
-            autom.emitValue("null");
-        }
-        else
-        {
-            autom.emitValue(obj.toString());
-        }
-
-        return emptyterator();
-    }
-
-    public void flush()
-    {
-        try
-        {
-            out.flush();
-        }
-        catch (Exception ignored)
-        {
+            autom.emitEnd();
         }
     }
 
-    public void close()
+    static String getSubstituteTypeNameIfExists(String typeName, WriteOptions options)
     {
-        try
-        {
-            out.close();
+        if (options.getCustomTypeMap().isEmpty()) {
+            return null;
         }
-        catch (Exception ignore)
-        {
-        }
+
+        return options.getCustomTypeMap().get(typeName);
     }
 
     private boolean tellIfDiff(Object one, Object two, String contextStr)
@@ -335,11 +499,19 @@ public class ObjectWriter
             {
                 Object theObj = top.o;
                 String key = null;
+                Accessor accessor = null;
+                Object context = null;
                 if (explicitStack.size() > 1) {
                     DepthStep almostTop = explicitStack.get(explicitStack.size() - 2);
-                    key = almostTop.it.currentKey();
+                    SidesIterator parentIt = almostTop.it;
+                    if (parentIt instanceof PojoReflecionIterator) {
+                        PojoReflecionIterator pojoIt = (PojoReflecionIterator) parentIt;
+                        accessor = pojoIt.currentField();
+                    }
+                    key = parentIt.currentKey();
+                    context = parentIt.currentContext();
                 }
-                SidesIterator goAheadVisitor = visitor.startsVisit(theObj, explicitStack.size(), key);
+                SidesIterator goAheadVisitor = visitor.startsVisit(theObj, explicitStack.size(), key, accessor, context);
 
                 top.it = goAheadVisitor != null ? goAheadVisitor : fallbackSequence(theObj);
             }
@@ -356,7 +528,7 @@ public class ObjectWriter
             {
                 visitor.visitNext(top.o, explicitStack.size() + 1, preContext, null);
                 DepthStep toQuit = explicitStack.remove(explicitStack.size() - 1);
-                visitor.endVisit(toQuit.o, explicitStack.size() + 1);
+                visitor.endVisit(toQuit.o, explicitStack.size() + 1, top.it);
             }
         }
     }
@@ -366,7 +538,7 @@ public class ObjectWriter
         return Emptyterator.instance;
     }
 
-    private SidesIterator fallbackSequence(Object obj)
+    private static SidesIterator fallbackSequence(Object obj)
     {
         if (obj == null)
         {
@@ -382,7 +554,7 @@ public class ObjectWriter
 
         if (clazz.isArray())
         {
-            return new ArrayIterator(obj);
+            return new ArrayIterator(obj, false);
         }
 
         if (Map.class.isAssignableFrom(clazz))
@@ -410,7 +582,7 @@ public class ObjectWriter
 
         if (obj instanceof Collection)
         {
-            return new Proxyterator(((Collection<?>) obj).iterator());
+            return new Proxyterator(((Collection<?>) obj).iterator(), false);
         }
 
         return new PojoReflecionIterator(obj);

@@ -779,8 +779,8 @@ public class JsonWriter implements Closeable, Flushable
     {
         //WriteOptions writeOptions = WriteOptionsBuilder.fromMap(args);
 
-		ObjectWriter ow = new ObjectWriter(this.out, false);
-		ow.write(obj);
+		ObjectWriter ow = new ObjectWriter(getWriteOptions());
+		ow.write(obj, this.out);
 
 		//depth = 0;
 		//var guide = new ObjectGraphRover(true, (Map) args.get(FIELD_SPECIFIERS), (Map) args.get(FIELD_BLACK_LIST));

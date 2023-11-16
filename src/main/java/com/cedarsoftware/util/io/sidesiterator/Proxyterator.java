@@ -1,6 +1,7 @@
 package com.cedarsoftware.util.io.sidesiterator;
 
 import com.cedarsoftware.util.io.ObjectWriter;
+import lombok.Getter;
 
 import java.util.Iterator;
 
@@ -12,9 +13,12 @@ public class Proxyterator implements ObjectWriter.SidesIterator
 {
 
     private final Iterator<?> underlying;
+    @Getter
+    private final boolean twoDeep;
 
-    public Proxyterator(Iterator<?> underlying)
+    public Proxyterator(Iterator<?> underlying, boolean twoDeep)
     {
+        this.twoDeep = twoDeep;
         if (underlying == null)
         {
             throw new NullPointerException("Underlying iterator may not be null");
@@ -31,4 +35,5 @@ public class Proxyterator implements ObjectWriter.SidesIterator
     {
         return underlying.next();
     }
+
 }

@@ -1,12 +1,13 @@
 package com.cedarsoftware.util.io;
 
+import java.io.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import com.cedarsoftware.util.reflect.Accessor;
+
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -333,7 +334,7 @@ class TestJDK9Immutable {
 
 	@Test
 	public void paf() {
-		        Rec rec1 = new Rec("OneOrThree", 0);
+        Rec rec1 = new Rec("OneOrThree", 0);
         Rec rec2 = new Rec("Two", 2);
         //rec1.link = rec2;
         //rec2.link = rec1;
@@ -344,21 +345,9 @@ class TestJDK9Immutable {
 		rec2.smap = Map.of("Zwei", rec2);
         List<Rec> ol = List.of(rec1, rec2, rec1);
 
-//		ObjectGraphRover rover = new ObjectGraphRover(false, null, null);
-//		rover.driveIn(ol, new ObjectGraphRover.Visitor() {
-//			public boolean startsVisit(Object object, int depth, Accessor mayField, String context) {
-//				System.out.printf("%"+ depth + "s start %s %s %s%n", " ", context, mayField != null, object);
-//				return true;
-//			}
-//
-//			public void visitNext(Object object, int depth, Object prev, Object next) {
-//				if (prev != next)
-//					System.out.printf("%"+ depth + "s next %s %s %s %n", " ", object, prev, next);
-//			}
-//
-//			public void endVisit(Object object, int depth) {
-//				System.out.printf("%"+ depth + "s end %s %n", " ", object);
-//			}
-//		});
+        CharArrayWriter fw = new CharArrayWriter(1000);
+        ObjectWriter ow = new ObjectWriter(null);
+        ow.write(ol, fw);
+        System.out.println(fw);
 	}
 }
