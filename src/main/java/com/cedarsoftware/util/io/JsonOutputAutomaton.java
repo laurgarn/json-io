@@ -55,6 +55,7 @@ public class JsonOutputAutomaton {
 
 	final ArrayList<Byte> packedStack;
 	int currentDepth;
+	int maxDepth;
 
 	private State currentState;
 
@@ -66,6 +67,7 @@ public class JsonOutputAutomaton {
 		this.throwsOnBadMove = throwsOnBadMove;
 		this.indentChunks = indentChunks;
 		this.currentDepth = 0;
+		this.maxDepth = -1;
 		this.packedStack = new ArrayList<>();
 		this.easyStack = new ArrayList<>();
 
@@ -553,6 +555,7 @@ public class JsonOutputAutomaton {
 		}
 
 		currentDepth += 1;
+		if (currentDepth > maxDepth) maxDepth = currentDepth;
 	}
 
 	boolean popPacked() {
