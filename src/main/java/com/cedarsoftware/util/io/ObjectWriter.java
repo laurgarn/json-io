@@ -3,9 +3,7 @@ package com.cedarsoftware.util.io;
 import com.cedarsoftware.util.io.sidesiterator.*;
 import com.cedarsoftware.util.reflect.Accessor;
 
-import java.io.ByteArrayOutputStream;
 import java.io.Writer;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 public class ObjectWriter
@@ -74,27 +72,6 @@ public class ObjectWriter
         this.config = config;
     }
 
-    public static String objectToJson(Object item)
-    {
-        return objectToJson(item, null);
-    }
-
-    public static String objectToJson(Object item, Map<String, Object> optionalArgs)
-    {
-        try
-        {
-            ByteArrayOutputStream stream = new ByteArrayOutputStream();
-            JsonWriter writer = new JsonWriter(stream, optionalArgs);
-            writer.write(item);
-            writer.close();
-            return stream.toString(StandardCharsets.UTF_8);
-        }
-        catch (Exception e)
-        {
-            throw new JsonIoException("Unable to convert object to JSON", e);
-        }
-    }
-
     public void write(Object obj, Writer out)
     {
         final boolean leastDeep = true; // TODO from config
@@ -102,7 +79,7 @@ public class ObjectWriter
 
         driveIn(obj, (object, depth, key, accessor, context) -> refsAccounter.recordOneUse(object, depth) ? null : emptyterator());
 
-        String indentChunks = "  "; // TODO from config
+        String indentChunks = config.isPrettyPrint() ? "  " : null;
         JsonOutputAutomaton autom = new JsonOutputAutomaton(out, true, indentChunks);
 
         driveIn(obj, new OneGoWriter(config, refsAccounter, autom));
@@ -342,7 +319,8 @@ public class ObjectWriter
             try
             {
                 Map<?, ?> map = (Map<?, ?>) object;
-                boolean hasToUseParalleleSequences = map.keySet().stream().anyMatch(ObjectWriter::problematicAsKey);
+                boolean hasToUseParalleleSequences = config.isForcingMapFormatWithKeyArrays()
+                    || map.keySet().stream().anyMatch(ObjectWriter::problematicAsKey);
                 if (hasToUseParalleleSequences)
                 {
                     KeysThenValuesMapIterator ret = new KeysThenValuesMapIterator(map);
@@ -350,8 +328,6 @@ public class ObjectWriter
                     {
                         autom.emitObjectStart();
                     }
-//                    autom.emitKey(config.isUsingShortMetaKeys() ? "@k" : "@keys");
-//                    autom.emitArrayStart();
 
                     return ret;
                 }
