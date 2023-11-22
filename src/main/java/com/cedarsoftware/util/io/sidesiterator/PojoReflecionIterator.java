@@ -28,11 +28,10 @@ public class PojoReflecionIterator implements ObjectWriter.SidesIterator
 
     public PojoReflecionIterator(Object obj)
     {
-        var cd = ClassDescriptors.instance().getClassDescriptor(obj.getClass());
-        Map<String, Accessor> as = cd.getAccessors();
+		var ass = ClassDescriptors.instance().getDeepAccessorsForClass(obj.getClass());
 
         ArrayList<FieldNContent> traversableSubs = new ArrayList<>();
-        for (Accessor accessor : as.values())
+        for (Accessor accessor : ass)
         {
             try
             {

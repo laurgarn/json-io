@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Set;
 
 
+import com.cedarsoftware.util.PrintStyle;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -339,6 +340,9 @@ class TestJDK9Immutable {
         //rec1.link = rec2;
         //rec2.link = rec1;
         rec1.ilinks = List.of(rec2, rec1);
+		rec1.smap = new HashMap<>();
+		rec1.smap.put("pouf", new Rec("Ah", 3));
+		rec1.smap.put("pif", rec1);
         rec2.ilinks = List.of();
 		rec2.pmap = new HashMap<>(Map.of(new Pair<>(1, 'a'), "start", new Pair<>(5, 'b'), "end"));
 		//rec2.map = new HashMap<>(Map.of("Zwei", rec2));
@@ -346,7 +350,8 @@ class TestJDK9Immutable {
         List<Rec> ol = List.of(rec1, rec2, rec1);
 
         CharArrayWriter fw = new CharArrayWriter(1000);
-        ObjectWriter ow = new ObjectWriter(null);
+        WriteOptions options = new WriteOptionsBuilder().skipNullFields().withPrintStyle(PrintStyle.PRETTY_PRINT).build();
+        ObjectWriter ow = new ObjectWriter(options);
         ow.write(ol, fw);
         System.out.println(fw);
 	}

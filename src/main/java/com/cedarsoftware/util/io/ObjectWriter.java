@@ -132,7 +132,7 @@ public class ObjectWriter
                 showsType = true;
             }
             else {
-                showsType = accessor != null && !Objects.equals(accessor.getType(), object.getClass());
+                showsType = accessor == null || !Objects.equals(accessor.getType(), object.getClass());
             }
 
             Long codedId = refsAccounter.getCodedId(object, depth);
