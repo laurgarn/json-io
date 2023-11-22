@@ -17,7 +17,7 @@ import java.io.Writer;
  *  2 : V -> 4, AE -> pop, AS -> 2 + push(4)
  *  4 : V -> 4+ , AE -> pop, AS -> 2 + push(4)
  */
-public class JsonOutputAutomaton {
+public class OutputAutomaton {
 	enum State {
 		Void,
 		WFK,
@@ -62,7 +62,7 @@ public class JsonOutputAutomaton {
 	private String rollbackableKey;
 	private Character rollbackableSep;
 
-	public JsonOutputAutomaton(Writer writer, boolean throwsOnBadMove, String indentChunks) {
+	public OutputAutomaton(Writer writer, boolean throwsOnBadMove, String indentChunks) {
 		this.writer = writer;
 		this.throwsOnBadMove = throwsOnBadMove;
 		this.indentChunks = indentChunks;

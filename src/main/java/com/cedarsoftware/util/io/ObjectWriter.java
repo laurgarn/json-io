@@ -28,7 +28,7 @@ public class ObjectWriter
 
     public interface CustomWriter
     {
-        default SidesIterator startWriteOn(Object objectToWrite, JsonOutputAutomaton automaton, WriteOptions options)
+        default SidesIterator startWriteOn(Object objectToWrite, OutputAutomaton automaton, WriteOptions options)
         {
             return Emptyterator.instance;
         }
@@ -80,7 +80,7 @@ public class ObjectWriter
         driveIn(obj, (object, depth, key, accessor, context) -> refsAccounter.recordOneUse(object, depth) ? null : emptyterator());
 
         String indentChunks = config.isPrettyPrint() ? "  " : null;
-        JsonOutputAutomaton autom = new JsonOutputAutomaton(out, true, indentChunks);
+        OutputAutomaton autom = new OutputAutomaton(out, true, indentChunks);
 
         driveIn(obj, new OneGoWriter(config, refsAccounter, autom));
     }
@@ -89,13 +89,13 @@ public class ObjectWriter
     static class OneGoWriter implements Visitor {
 
         private final WriteOptions config;
-        private final RefsAccounter refsAccounter;
-        private final JsonOutputAutomaton autom;
+        private final RefsAccounter   refsAccounter;
+        private final OutputAutomaton autom;
 
         OneGoWriter(
                 WriteOptions config,
                 RefsAccounter refsAccounter,
-                JsonOutputAutomaton autom
+                OutputAutomaton autom
         ) {
 
             this.config = config;

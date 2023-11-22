@@ -19,7 +19,7 @@ public class OutputAutomatonTest {
 	private void doIt(boolean withIdentation) throws IOException {
 		ByteArrayOutputStream stream = new ByteArrayOutputStream();
 		var writer = new BufferedWriter(new OutputStreamWriter(stream, StandardCharsets.UTF_8));
-		JsonOutputAutomaton autom = new JsonOutputAutomaton(writer, false, withIdentation ? "  " : null);
+		OutputAutomaton autom = new OutputAutomaton(writer, false, withIdentation ? "  " : null);
 
 		assertFalse(autom.emitKey("keyBeforeStart"));
 		assertTrue(autom.emitObjectStart());
