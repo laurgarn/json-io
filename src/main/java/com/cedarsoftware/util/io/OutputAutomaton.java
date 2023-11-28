@@ -346,6 +346,8 @@ public class OutputAutomaton {
 						return false;
 					if (state == 0)
 						state = 2;
+					else if (state == 4)
+						state = 5;
 					break;
 				case '.':
 					if (state != 2 && state != 3)
@@ -367,7 +369,7 @@ public class OutputAutomaton {
 						state = 3;
 					else if (state == 4)
 						state = 5;
-					else if (state == 7)
+					else if (state == 6 || state == 7)
 						state = 8;
 					break;
 				case 'e':
