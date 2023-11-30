@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -21,12 +22,17 @@ public class OutputAutomatonTest {
 
     @Test
 	public void flat() throws IOException {
-		doIt(new OutputAutomaton.Config(null, false), 358);
+		doIt(new OutputAutomaton.Config(null, false, 0), 358);
 	}
 
     @Test
 	public void indented() throws IOException {
-		doIt(new OutputAutomaton.Config("  ", true), 400);
+		doIt(new OutputAutomaton.Config("  ", true, 0), 400);
+	}
+
+    @Test
+	public void repacked() throws IOException {
+		doIt(new OutputAutomaton.Config("  ", true, 80), 364);
 	}
 
 	private void doIt(OutputAutomaton.Config config, int expectedLength) throws IOException {
@@ -82,12 +88,14 @@ public class OutputAutomatonTest {
 			assertTrue(autom.emitObjectEnd());
 		assertTrue(autom.emitObjectEnd());
 		assertFalse(autom.emitObjectEnd());
-		autom.flush();
+		assertFalse(autom.flush());
+
 		writer.close();
 		String got = stream.toString(StandardCharsets.UTF_8);
 		System.out.printf("Long: %d%n", got.length());
 		System.out.println(got);
-		//assertEquals(config ? 400 : 306, got.length());
+
+		assertTrue(autom.maxQueueLength < 14, "Max queue length " + autom.maxQueueLength + " should be lower than 10");
 		assertEquals(expectedLength, got.length());
 	}
 }

@@ -38,16 +38,19 @@ public class OutputAutomaton {
 	public static class Config {
 		final public String indentChunk;
 		final private boolean noSpaces;
+		final int lineMaxLength;
 
 
 		public Config() {
 			indentChunk = "  ";
 			noSpaces = true;
+			lineMaxLength = 132;
 		}
 
-		public Config(String indentChunk, boolean noSpaces) {
+		public Config(String indentChunk, boolean noSpaces, int lineMaxLength) {
 			this.indentChunk = indentChunk;
 			this.noSpaces = noSpaces;
+			this.lineMaxLength = lineMaxLength;
 		}
 
 		public boolean spaceBefore(Character c) {
@@ -56,6 +59,7 @@ public class OutputAutomaton {
 		}
 
 		public boolean spaceAfter(Character c) {
+			if (lineMaxLength > 0 && c == ',') return true;
 			if (noSpaces) return false;
 			return c != '}' && c != ']';
 		}
@@ -170,26 +174,16 @@ public class OutputAutomaton {
 	final Stack<StateForIndent> easyStack;
 	final Queue<Unit> queue;
 
-	//private int currentDepth;
-	//private int rollbackableDepth;
-
-	private int maxDepth;
-	private int maxQueueLength;
+	int maxDepth;
+	int maxQueueLength;
 
 	public OutputAutomaton(Writer writer, boolean throwsOnBadMove, Config config) {
 		this.writer = writer;
 		this.throwsOnBadMove = throwsOnBadMove;
 		this.config = config;
-		//this.indentChunks = indentChunks;
-		//this.currentDepth = 0;
 		this.maxDepth = -1;
-		//this.packedStack = new ArrayList<>();
 		this.easyStack = new Stack<>();
 		this.queue = new Queue<>();
-
-		//this.currentState = State.Void;
-		//this.rollbackableKey = null;
-		//this.rollbackableSep = null;
 	}
 
 	public State getCurrentState() {
@@ -352,7 +346,7 @@ public class OutputAutomaton {
 
 	}
 
-	void updateOnStart(Unit unit, State toPush, State toSetOnPrevTop) {
+	private void updateOnStart(Unit unit, State toPush, State toSetOnPrevTop) {
 		// toPush in WNV, GV
 		StateForIndent upper = easyStack.isEmpty() ? null : easyStack.peek();
 		StateForIndent newElem = new StateForIndent(toPush, upper);
@@ -383,7 +377,7 @@ public class OutputAutomaton {
 		}
 	}
 
-	void updateOnStr(Unit unit, State nextState) {
+	private void updateOnStr(Unit unit, State nextState) {
 		StateForIndent extState = easyStack.peek();
 		unit.level = extState;
 		extState.currentState = nextState;
@@ -401,9 +395,13 @@ public class OutputAutomaton {
 			extState.minUsedCols += 1;
 			if (config.spaceAfter(sep)) extState.minUsedCols += 1;
 		}
+
+		if (config != null & unit.move == Move.V) {
+			resolveLevel(extState, true);
+		}
 	}
 
-	void updateOnEnd(Unit unit) {
+	private void updateOnEnd(Unit unit) {
 		StateForIndent popped = easyStack.pop();
 		unit.level = popped;
 		if (!easyStack.isEmpty()) {
@@ -418,7 +416,7 @@ public class OutputAutomaton {
 		if (popped.needsIndent == null) {
 			if (config.spaceBefore(c)) popped.minUsedCols += 1;
 			popped.minUsedCols += 1;
-			resolveLevel(popped);
+			resolveLevel(popped, false);
 		}
 
 		if (easyStack.isEmpty())
@@ -435,16 +433,26 @@ public class OutputAutomaton {
 		} else if (popped.needsIndent == Boolean.TRUE) {
 			stateToUpdate.needsIndent = Boolean.TRUE;
 		} else {
-			stateToUpdate.minUsedCols += stateToUpdate.minUsedCols;
+			stateToUpdate.minUsedCols += popped.minUsedCols;
 			if (config.spaceAfter(c)) stateToUpdate.minUsedCols += 1;
+		}
+
+		if (stateToUpdate.needsIndent == null) {
+			resolveLevel(stateToUpdate, true);
 		}
 	}
 
-	void resolveLevel(StateForIndent extState) {
-		// TODO LG put TRUE/FALSE for popped units
+	private void resolveLevel(StateForIndent extState, boolean partialEvaluation) {
+		if (config.lineMaxLength >= 0) {
+			if (extState.minUsedCols > config.lineMaxLength) {
+				extState.needsIndent = Boolean.TRUE;
+			} else if (! partialEvaluation){
+				extState.needsIndent = Boolean.FALSE;
+			}
+		}
 	}
 
-	boolean flushQueue(boolean carefully) {
+	private boolean flushQueue(boolean carefully) {
 		final int len = queue.size();
 		int nbDone = 0;
 		try {
@@ -492,7 +500,9 @@ public class OutputAutomaton {
 
 		if (pairToWrite != null) {
 			boolean wraps = config != null && config.indentChunk != null
-				&& unit.level.parent != null && unit.level.parent.firstUnit.move == Move.AS;
+				&& unit.level.parent != null
+				&& unit.level.parent.needsIndent != Boolean.FALSE
+				&& unit.level.parent.firstUnit.move == Move.AS;
 			flushTheSep(unit, wraps);
 			writer.write(pairToWrite);
 			return true;
