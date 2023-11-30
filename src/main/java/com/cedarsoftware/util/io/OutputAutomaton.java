@@ -1,9 +1,15 @@
 package com.cedarsoftware.util.io;
 
 import java.util.ArrayList;
+import java.util.EmptyStackException;
+import java.util.List;
 
 import java.io.IOException;
 import java.io.Writer;
+
+import lombok.Getter;
+import lombok.NonNull;
+import lombok.Setter;
 
 /**
  * Write Json incrementally.
@@ -18,7 +24,8 @@ import java.io.Writer;
  *  4 : V -> 4+ , AE -> pop, AS -> 2 + push(4)
  */
 public class OutputAutomaton {
-	enum State {
+
+	public enum State {
 		Void,
 		WFK,
 		WFV,
@@ -26,6 +33,32 @@ public class OutputAutomaton {
 		WNV,
 		WV,
 		GV,
+	}
+
+	public static class Config {
+		final public String indentChunk;
+		final private boolean noSpaces;
+
+
+		public Config() {
+			indentChunk = "  ";
+			noSpaces = true;
+		}
+
+		public Config(String indentChunk, boolean noSpaces) {
+			this.indentChunk = indentChunk;
+			this.noSpaces = noSpaces;
+		}
+
+		public boolean spaceBefore(Character c) {
+			if (noSpaces) return false;
+			return c != ',' && c != '{' && c != '[';
+		}
+
+		public boolean spaceAfter(Character c) {
+			if (noSpaces) return false;
+			return c != '}' && c != ']';
+		}
 	}
 
 	enum Move {
@@ -48,36 +81,120 @@ public class OutputAutomaton {
 		final String str;
 	}
 
-	final Writer writer;
-	final boolean throwsOnBadMove;
-	final String indentChunks;
-	final ArrayList<State> easyStack;
-
-	final ArrayList<Byte> packedStack;
-	int currentDepth;
-	int maxDepth;
-
-	private State currentState;
-
-	private String rollbackableKey;
-	private Character rollbackableSep;
-
-	public OutputAutomaton(Writer writer, boolean throwsOnBadMove, String indentChunks) {
-		this.writer = writer;
-		this.throwsOnBadMove = throwsOnBadMove;
-		this.indentChunks = indentChunks;
-		this.currentDepth = 0;
-		this.maxDepth = -1;
-		this.packedStack = new ArrayList<>();
-		this.easyStack = new ArrayList<>();
-
-		this.currentState = State.Void;
-		this.rollbackableKey = null;
-		this.rollbackableSep = null;
+	static class Queue<E> extends ArrayList<E> {
+		public void removeRange(int fromIndex, int toIndex) {
+			super.removeRange(fromIndex, toIndex);
+		}
 	}
 
-	State getCurrentState() {
-		return currentState;
+	static class Stack<E> extends ArrayList<E> {
+		public E peek() {
+			if (isEmpty()) throw new EmptyStackException();
+			return get(size() - 1);
+		}
+		public E pop() {
+			if (isEmpty()) throw new EmptyStackException();
+			int lastIndex = size() - 1;
+			E ret = get(lastIndex);
+			remove(lastIndex);
+			return ret;
+		}
+		public boolean empty() {
+			return isEmpty();
+		}
+	}
+
+	static class StateForIndent {
+		final State initialState;
+		final StateForIndent parent;
+		final int depth;
+
+		State currentState;
+		int maxDepthUnder;
+		int directSubsDoneCount;
+		int minUsedCols;
+		Boolean needsIndent;
+		Unit firstUnit;
+
+		StateForIndent(State state, StateForIndent parent) {
+			this.initialState = state;
+			this.currentState = state;
+			this.parent = parent;
+			this.depth = parent == null ? 0 : parent.depth + 1;
+		}
+
+		public String toString() {
+			return "SFI{" +
+				" init=" + initialState +
+				", currentState=" + currentState +
+				", firstUnit=" + firstUnit +
+				", needsIndent=" + needsIndent +
+				", maxDepthUnder=" + maxDepthUnder +
+				", directSubsDoneCount=" + directSubsDoneCount +
+				", minUsedCols=" + minUsedCols +
+				'}';
+		}
+	}
+
+	@Getter
+	static class Unit {
+		private final String    str;
+		private final Character sep;
+		private final Move      move;
+		private StateForIndent  level;
+
+		@Setter
+		private int charCount;
+
+		public Unit(String str, Character sep, Move move) {
+			this.str = str;
+			this.sep = sep;
+			this.move = move;
+		}
+
+		public String toString() {
+			return "Unit{" +
+				"move=" + move.name() +
+				", str='" + str + '\'' +
+				", sep=" + sep +
+				", charCount=" + charCount +
+				", level=" + (level == null ? "?" : level.depth) +
+				'}';
+		}
+	}
+
+	private final Writer writer;
+	private final boolean throwsOnBadMove;
+	private final Config config;
+
+	final Stack<StateForIndent> easyStack;
+	final Queue<Unit> queue;
+
+	//private int currentDepth;
+	//private int rollbackableDepth;
+
+	private int maxDepth;
+	private int maxQueueLength;
+
+	public OutputAutomaton(Writer writer, boolean throwsOnBadMove, Config config) {
+		this.writer = writer;
+		this.throwsOnBadMove = throwsOnBadMove;
+		this.config = config;
+		//this.indentChunks = indentChunks;
+		//this.currentDepth = 0;
+		this.maxDepth = -1;
+		//this.packedStack = new ArrayList<>();
+		this.easyStack = new Stack<>();
+		this.queue = new Queue<>();
+
+		//this.currentState = State.Void;
+		//this.rollbackableKey = null;
+		//this.rollbackableSep = null;
+	}
+
+	public State getCurrentState() {
+		if (easyStack.isEmpty()) return State.Void;
+		return easyStack.peek().currentState;
 	}
 
 	public boolean emitObjectStart() {
@@ -101,7 +218,7 @@ public class OutputAutomaton {
 	}
 
 	public boolean emitEnd() {
-		switch (currentState) {
+		switch (getCurrentState()) {
 			case Void:
 				return returnFalseOrThrow("Nothing to close");
 			case WFK:
@@ -124,18 +241,18 @@ public class OutputAutomaton {
 	}
 
 	private boolean dispatch(Move move, String str) {
-		switch (currentState) {
+		switch (getCurrentState()) {
 			case Void:
 				return fromVoid(move);
 			case WFK:
 			case WNK:
-				return fromWaitingForKey(move, str, currentState == State.WFK);
+				return fromWaitingForKey(move, str, getCurrentState() == State.WFK);
 			case WFV:
 			case WNV:
-				return fromWaitingForValue(move, str, currentState == State.WFV);
+				return fromWaitingForValue(move, str, getCurrentState() == State.WFV);
 			case WV:
 			case GV:
-				return fromWaitingInArray(move, str, currentState == State.WV);
+				return fromWaitingInArray(move, str, getCurrentState() == State.WV);
 		}
 
 		return false;
@@ -144,153 +261,357 @@ public class OutputAutomaton {
 	private boolean fromVoid(Move move) {
 		switch (move) {
 			case OS:
-				push(State.Void);
-				doObjectStart(null);
-				setCurrentState(State.WFK);
+				program(move, State.WFK, null, null, null);
 				return true;
 			case AS:
-				push(State.Void);
-				doArrayStart(':');
-				setCurrentState(State.WV);
+				program(move, State.WV, null, null, null);
 				return true;
 			default:
-				return returnFalseOrThrow("Move " + move + " not allowed from " + currentState);
+				return returnFalseOrThrow("Move " + move + " not allowed from " + getCurrentState());
 		}
 	}
 
 	private boolean fromWaitingForKey(Move move, String key, boolean first) {
 		switch (move) {
 			case K:
-				programString(key, first ? null : ',');
-				setCurrentState(first ? State.WFV : State.WNV);
+				program(move, first ? State.WFV : State.WNV, first ? null : ',', key, null);
 				return true;
 			case OE:
-				boolean toRet = pop();
-				if (toRet) doObjectEnd(first);
-				return toRet;
+				if (easyStack.isEmpty())
+					return false;
+				program(move, null, null, null, null);
+				mayFlush();
+				return true;
+			case R:
+				if (doRollback())
+					return true;
+				// else fall through
 			default:
-				return returnFalseOrThrow("Move " + move + " not allowed from " + currentState);
+				return returnFalseOrThrow("Move " + move + " not allowed from " + getCurrentState());
 		}
 	}
 
 	private boolean fromWaitingForValue(Move move, String value, boolean first) {
 		switch (move) {
 			case V:
-				doCommitLastKey();
-				doString(value, ':', true);
-				setCurrentState(State.WNK);
+				program(move, State.WNK, ':', value, null);
+				mayFlush();
 				return true;
 			case OS:
-				doCommitLastKey();
-				push(State.WNK);
-				doObjectStart(':');
-				setCurrentState(State.WFK);
+				program(move, State.WFK, ':', null, State.WNK);
 				return true;
 			case AS:
-				doCommitLastKey();
-				push(State.WNK);
-				doArrayStart(':');
-				setCurrentState(State.WV);
+				program(move, State.WV, ':', null, State.WNK);
 				return true;
 			case R:
 				doRollback();
-				setCurrentState(first ? State.WFK : State.WNK);
 				return true;
 			default:
-				return returnFalseOrThrow("Move " + move + " not allowed from " + currentState);
+				return returnFalseOrThrow("Move " + move + " not allowed from " + getCurrentState());
 		}
 	}
 
 	private boolean fromWaitingInArray(Move move, String str, boolean isFirst) {
 		switch (move) {
 			case V:
-				doString(str, isFirst ? null : ',', true);
-				setCurrentState(State.GV);
+				program(move, State.GV, isFirst ? null : ',', str, null);
+				mayFlush();
 				return true;
 			case AE:
-				boolean toRet = pop();
-				doArrayEnd(isFirst);
-				return toRet;
+				if (easyStack.isEmpty())
+					return false;
+				program(move, null, null, null, null);
+				mayFlush();
+				return true;
 			case OS:
-				doObjectStart(isFirst ? null : ',');
-				setCurrentState(State.WFK);
-				push(State.GV);
+				program(move, State.WFK, isFirst ? null : ',', null, State.GV);
 				return true;
 			case AS:
-				doCommitLastKey();
-				doArrayStart(isFirst ? null : ',');
-				setCurrentState(State.WV);
-				push(State.GV);
+				program(move, State.WV, isFirst ? null : ',', null, State.GV);
+				mayFlush();
 				return true;
 			default:
-				return returnFalseOrThrow("Move " + move + " not allowed from " + currentState);
+				return returnFalseOrThrow("Move " + move + " not allowed from " + getCurrentState());
 		}
 	}
 
-	void setCurrentState(State nextState) {
-		this.currentState = nextState;
-	}
-
-	public static int nbChunksToUsed(int depth, int oneDeepBits, int largerChunksBits) {
-		int bitsToUse = depth * oneDeepBits;
-		int bitsOver = bitsToUse % largerChunksBits;
-		return bitsToUse / largerChunksBits + (bitsOver == 0 ? 0 : 1);
-	}
-
-	private void doObjectStart(Character character) {
-		try {
-			if (character != null) {
-				writer.write(character);
-				if (character == ',') {
-					mayIndent();
-				}
-			}
-			writer.write('{');
-		} catch (IOException e) {
-			throw new RuntimeException(e);
+	private void program(@NonNull Move move, State nextState, Character preSeparator, String str, State toSetOnPrevTop) {
+		Unit newUnit = new Unit(str, preSeparator, move);
+		queue.add(newUnit);
+		if (queue.size() > maxQueueLength) {
+			maxQueueLength = queue.size();
 		}
-	}
 
-	private void doArrayStart(Character character) {
-		try {
-			if (character != null) {
-				writer.write(character);
-				if (character == ',') {
-					mayIndent();
-				}
-			}
-			writer.write('[');
-		} catch (IOException e) {
-			throw new RuntimeException(e);
+		if (nextState != null && (toSetOnPrevTop != null || easyStack.empty())) {
+			updateOnStart(newUnit, nextState, toSetOnPrevTop);
+		} else if (nextState != null) {
+			updateOnStr(newUnit, nextState);
+		} else {
+			updateOnEnd(newUnit);
 		}
+
 	}
 
-	private void programString(String key, Character character) {
-		rollbackableKey = key;
-		rollbackableSep = character;
-	}
+	void updateOnStart(Unit unit, State toPush, State toSetOnPrevTop) {
+		// toPush in WNV, GV
+		StateForIndent upper = easyStack.isEmpty() ? null : easyStack.peek();
+		StateForIndent newElem = new StateForIndent(toPush, upper);
+		easyStack.add(newElem);
+		unit.level = newElem;
+		newElem.firstUnit = unit;
 
-	private void doString(String key, Character c, boolean allowsUnquoted) {
-		try {
-            if (c == null) {
-                mayIndent();
-            } else {
-                writer.write(c);
-                if (c == ',') {
-                    mayIndent();
-                }
-			}
+		if (maxDepth < easyStack.size())
+			maxDepth = easyStack.size();
 
-			if (allowsUnquoted && !needsQuote(key, true)) {
-				writer.write(key);
+		if (config != null) {
+			char c = unit.move == Move.OS ? '{' : '[';
+
+			if (upper == null) {
+				assert toSetOnPrevTop == null;
 			} else {
-				String escaped = escapedUtf8String(key);
-				writer.write('"');
-                writer.write(escaped);
-				writer.write('"');
-            }
-		} catch (IOException e) {
-			throw new RuntimeException(e);
+				upper.currentState = toSetOnPrevTop;
+				if (unit.sep != null) {
+					if (config.spaceBefore(unit.sep)) upper.minUsedCols += 1;
+					upper.minUsedCols += 1;
+					if (config.spaceAfter(unit.sep) || config.spaceBefore(c))
+						upper.minUsedCols += 1;
+				}
+			}
+
+			newElem.minUsedCols += 1;
+			if (config.spaceAfter(c)) newElem.minUsedCols += 1;
+		}
+	}
+
+	void updateOnStr(Unit unit, State nextState) {
+		StateForIndent extState = easyStack.peek();
+		unit.level = extState;
+		extState.currentState = nextState;
+
+		// sep in [null, ',', ':' ]
+		if (extState.needsIndent != null) return;
+
+		Character sep = unit.getSep();
+		String str = unit.getStr();
+
+		extState.directSubsDoneCount += 1;
+		extState.minUsedCols += str.length(); // min : the possible 2 " not added
+		if (config != null && sep != null) {
+			if (config.spaceBefore(sep)) extState.minUsedCols += 1;
+			extState.minUsedCols += 1;
+			if (config.spaceAfter(sep)) extState.minUsedCols += 1;
+		}
+	}
+
+	void updateOnEnd(Unit unit) {
+		StateForIndent popped = easyStack.pop();
+		unit.level = popped;
+		if (!easyStack.isEmpty()) {
+			var top = easyStack.peek();
+			top.currentState = top.initialState == State.WFK ? State.WNK : State.GV;
+		}
+
+		if (config == null)
+			return;
+
+		char c = popped.initialState == State.WFK ? '}' : ']';
+		if (popped.needsIndent == null) {
+			if (config.spaceBefore(c)) popped.minUsedCols += 1;
+			popped.minUsedCols += 1;
+			resolveLevel(popped);
+		}
+
+		if (easyStack.isEmpty())
+			return;
+
+		StateForIndent stateToUpdate = easyStack.peek();
+
+		stateToUpdate.directSubsDoneCount += 1;
+		if (stateToUpdate.maxDepthUnder <= popped.maxDepthUnder)
+			stateToUpdate.maxDepthUnder = popped.maxDepthUnder + 1;
+
+		if (stateToUpdate.needsIndent != null) {
+			// already decided, avoid waste time
+		} else if (popped.needsIndent == Boolean.TRUE) {
+			stateToUpdate.needsIndent = Boolean.TRUE;
+		} else {
+			stateToUpdate.minUsedCols += stateToUpdate.minUsedCols;
+			if (config.spaceAfter(c)) stateToUpdate.minUsedCols += 1;
+		}
+	}
+
+	void resolveLevel(StateForIndent extState) {
+		// TODO LG put TRUE/FALSE for popped units
+	}
+
+	boolean flushQueue(boolean carefully) {
+		final int len = queue.size();
+		int nbDone = 0;
+		try {
+			while (nbDone < len) {
+				Unit unit = queue.get(nbDone);
+
+				if (config == null) {
+					flushOneFlat(unit);
+				} else if (carefully && unit.level.needsIndent == null) {
+					break;
+				} else if (squashWithNext(unit, nbDone + 1)) {
+					nbDone += 1;
+				} else if (unit.level.needsIndent == Boolean.FALSE || config.indentChunk == null) {
+					flushOneFormatted(unit);
+				} else {
+					unit.level.needsIndent = Boolean.TRUE;
+					flushOneIndented(unit);
+				}
+				nbDone += 1;
+			}
+
+			queue.removeRange(0, nbDone);
+		} catch (IOException ex) {
+			throw new RuntimeException(ex);
+		}
+
+		return nbDone > 0;
+	}
+
+	private boolean squashWithNext(Unit unit, int nextOffset) throws IOException {
+		if (nextOffset >= queue.size()) {
+			return false;
+		}
+		if (unit.move != Move.OS && unit.move != Move.AS) {
+			return false;
+		}
+
+		Unit nextUnit = queue.get(nextOffset);
+		String pairToWrite = null;
+		if (unit.move == Move.OS && nextUnit.move == Move.OE) {
+			pairToWrite = "{}";
+		} else if (unit.move == Move.AS && nextUnit.move == Move.AE) {
+			pairToWrite = "[]";
+		}
+
+		if (pairToWrite != null) {
+			boolean wraps = config != null && config.indentChunk != null
+				&& unit.level.parent != null && unit.level.parent.firstUnit.move == Move.AS;
+			flushTheSep(unit, wraps);
+			writer.write(pairToWrite);
+			return true;
+		}
+
+		return false;
+	}
+
+	private void flushTheSep(Unit unit, boolean wraps) throws IOException {
+		if (unit.sep != null) {
+			if (config.spaceBefore(unit.sep))
+				writer.write(' ');
+			writer.write(unit.sep);
+		}
+
+		if (wraps) {
+			writer.write('\n');
+			writeIndentFromLeftSide(unit.level.depth);
+		} else if (unit.sep != null) {
+			if (config.spaceAfter(unit.sep))
+				writer.write(' ');
+		}
+	}
+
+	private void flushOneFlat(Unit unit) throws IOException {
+		if (unit.sep != null)
+			writer.write(unit.sep);
+		if (unit.str != null) {
+			flushStrPart(unit);
+		} else if (unit.move == null) {
+			// breakpoint spot
+		} else {
+			Character c = getMoveChar(unit.move);
+			writer.write(c);
+		}
+	}
+
+	private void flushOneFormatted(Unit unit) throws IOException {
+		flushTheSep(unit, false);
+
+		if (unit.str != null) {
+			flushStrPart(unit);
+		} else if (unit.move != null) {
+			Character mainChar = getMoveChar(unit.move);
+			if (mainChar == null)
+				return;
+
+			if (config.spaceBefore(mainChar) && (unit.sep == null || !config.spaceAfter(unit.sep)))
+				writer.write(' ');
+			writer.write(mainChar);
+			if (config.spaceAfter(mainChar))
+				writer.write(' ');
+		}
+	}
+
+	private boolean needIndent(Unit unit) {
+		switch (unit.move) {
+			case K:
+			case OE:
+			case AE:
+				return true;
+			case V:
+				return unit.level.firstUnit.move == Move.AS;
+			default:
+				return false;
+		}
+	}
+
+	private void flushOneIndented(Unit unit) throws IOException {
+		if (unit.sep != null) {
+			if (config.spaceBefore(unit.sep))
+				writer.write(' ');
+			writer.write(unit.sep);
+		}
+
+		if (needIndent(unit)) {
+			writer.write("\n");
+			if (!config.indentChunk.isEmpty()) {
+				int nbTodo = unit.level.depth;
+				if (unit.move != Move.OE && unit.move != Move.AE)
+					nbTodo += 1;
+				writeIndentFromLeftSide(nbTodo);
+			}
+		} else if (unit.sep != null) {
+			if (config.spaceAfter(unit.sep))
+				writer.write(' ');
+		}
+
+		if (unit.str != null) {
+			flushStrPart(unit);
+		} else {
+			Character c = getMoveChar(unit.move);
+			writer.write(c);
+		}
+	}
+
+	private void writeIndentFromLeftSide(int nbTodo) throws IOException {
+		for (int i = nbTodo; i > 0; i--)
+			writer.write(config.indentChunk);
+	}
+
+	static Character getMoveChar(Move move) {
+		switch (move) {
+			case OS: return '{';
+			case AS: return '[';
+			case OE: return '}';
+			case AE: return ']';
+		}
+		return null;
+	}
+
+	private void flushStrPart(Unit unit) throws IOException {
+		if (!needsQuote(unit.str, unit.move == Move.V)) {
+			writer.write(unit.str);
+		} else {
+			String escaped = escapedUtf8String(unit.str);
+			writer.write('"');
+			writer.write(escaped);
+			writer.write('"');
 		}
 	}
 
@@ -449,73 +770,48 @@ public class OutputAutomaton {
         return sb.toString();
     }
 
-	private void doObjectEnd(boolean first) {
-		try {
-			if (!first) {
-				mayIndent();
-			}
-			writer.write('}');
-		} catch (IOException e) {
-			throw new RuntimeException(e);
-		}
-	}
-
-	private void doArrayEnd(boolean isFirst) {
-		try {
-			if (!isFirst) {
-				mayIndent();
-			}
-			writer.write(']');
-		} catch (IOException e) {
-			throw new RuntimeException(e);
-		}
-	}
-
-	private void doCommitLastKey() {
-		if (rollbackableKey != null) {
-			doString(rollbackableKey, rollbackableSep, false);
-			rollbackableKey = null;
-			rollbackableSep = null;
-		}
-	}
-
-	private void doRollback() {
-		rollbackableKey = null;
-		rollbackableSep = null;
-	}
-
-	private void mayIndent() throws IOException {
-		if (indentChunks == null)
-			return;
-
-		writer.write("\n");
-
-		if (indentChunks.isEmpty())
-			return;
-
-		for (int i = currentDepth > 0 ? currentDepth : easyStack.size() ; i > 0 ; i--)
-			writer.write(indentChunks);
-	}
-
-	private void push(State state) {
-		pushPacked(state);
-	}
-
-	private boolean pop() {
-		return popPacked();
-	}
-
-	private void pushEasy(State state) {
-		easyStack.add(state);
-	}
-
-	private boolean popEasy() {
-		if (easyStack.isEmpty()) {
-			return returnFalseOrThrow("State stack empty, can not pop");
+	private boolean doRollback() {
+		if (!queue.isEmpty()) {
+			return rollbackIfSuffix(List.of(Move.K))
+				|| rollbackIfSuffix(List.of(Move.K, Move.OS))
+				|| rollbackIfSuffix(List.of(Move.K, Move.AS));
 		}
 
-		setCurrentState(easyStack.remove(easyStack.size() - 1));
+		return false;
+	}
+
+	private boolean rollbackIfSuffix(List<Move> moves) {
+		int qlen = queue.size();
+		int plen = moves.size();
+		if (qlen < plen)
+			return false;
+
+		Unit prevLastUnit = queue.get(qlen - 1);
+		for (int i = 0; i < plen; i++)
+			if (queue.get(qlen - plen + i).move != moves.get(i))
+				return false;
+
+		for (int i = 0; i < plen; i++)
+			queue.remove(qlen - 1 - i);
+
+		if (prevLastUnit.move != Move.K) {
+			easyStack.pop();
+		}
+
+		StateForIndent currentTop = easyStack.peek();
+		if (currentTop.currentState == State.WFV) {
+			currentTop.currentState = State.WFK;
+		} else if (currentTop.currentState == State.WNV) {
+			currentTop.currentState = State.WNK;
+		} else {
+			assert false;
+		}
+
 		return true;
+	}
+
+	private void mayFlush() {
+		flushQueue(true);
 	}
 
 	private boolean returnFalseOrThrow(String reason) {
@@ -526,79 +822,7 @@ public class OutputAutomaton {
 		return false;
 	}
 
-	void pushPacked() {
-		pushPacked(currentState);
-	}
-
-	void pushPacked(State state) {
-		final int oneDeepBits = 3;
-		final int largerChunksBits = 8;
-
-		int stateBits = state.ordinal();
-
-		int unlimitedShift = currentDepth * oneDeepBits;
-		int inChunkShift = unlimitedShift % largerChunksBits;
-		int lastBitOffset = (inChunkShift + oneDeepBits - 1) % largerChunksBits;
-
-		if (inChunkShift > 0) {
-			int lastIndex = packedStack.size() - 1;
-			long chunkBits = packedStack.get(lastIndex);
-			long mask = ((1 << oneDeepBits) - 1) << inChunkShift;
-			chunkBits &= ~mask;
-			chunkBits |= (stateBits << inChunkShift);
-			byte byteBits1 = (byte) chunkBits;
-			packedStack.set(lastIndex, byteBits1);
-		}
-
-		if (lastBitOffset < oneDeepBits) {
-			int chunkBits = stateBits >> (oneDeepBits - lastBitOffset - 1);
-			byte byteBits = (byte) chunkBits;
-			packedStack.add(byteBits);
-		}
-
-		currentDepth += 1;
-		if (currentDepth > maxDepth) maxDepth = currentDepth;
-	}
-
-	boolean popPacked() {
-		if (currentDepth <= 0) {
-			return returnFalseOrThrow("State stack empty, can not pop");
-		}
-
-		final int oneDeepBits = 3;
-		final int largerChunksBits = 8;
-		final long byteMask = (1L << 8) - 1;
-
-		int nextDepth = currentDepth - 1;
-		int unlimitedShift = nextDepth * oneDeepBits;
-		int inChunkShift = unlimitedShift % largerChunksBits;
-		int lastBitOffset = (inChunkShift + oneDeepBits - 1) % largerChunksBits;
-
-
-		int lastIndex = packedStack.size() - 1;
-		long bits = 0;
-
-		if (lastBitOffset < oneDeepBits) {
-			long upperBits = packedStack.remove(lastIndex);
-			int nbBitsToUse = lastBitOffset + 1;
-			upperBits &= (1L << nbBitsToUse) - 1;
-			upperBits <<= (oneDeepBits - lastBitOffset - 1);
-			bits |= upperBits;
-			lastIndex -= 1;
-		}
-
-		if (inChunkShift > 0) {
-			byte byteBits = packedStack.get(lastIndex);
-			long lowerBits = byteBits & byteMask;
-			lowerBits >>>= inChunkShift;
-			int nbBitsToUse = lastBitOffset < oneDeepBits ? oneDeepBits - lastBitOffset - 1 : oneDeepBits;
-			lowerBits &=	(1L << nbBitsToUse) - 1;
-			bits |= lowerBits;
-		}
-
-		currentDepth = nextDepth;
-		setCurrentState(State.values()[(int)bits]);
-
-		return true;
+	public boolean flush() {
+		return flushQueue(false);
 	}
 }

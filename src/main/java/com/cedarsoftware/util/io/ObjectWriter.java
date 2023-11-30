@@ -79,8 +79,8 @@ public class ObjectWriter
 
         driveIn(obj, (object, depth, key, accessor, context) -> refsAccounter.recordOneUse(object, depth) ? null : emptyterator());
 
-        String indentChunks = config.isPrettyPrint() ? "  " : null;
-        OutputAutomaton autom = new OutputAutomaton(out, true, indentChunks);
+        OutputAutomaton.Config config1 = !config.isPrettyPrint() ? null : new OutputAutomaton.Config();
+        OutputAutomaton autom = new OutputAutomaton(out, true, config1);
 
         driveIn(obj, new OneGoWriter(config, refsAccounter, autom));
     }
