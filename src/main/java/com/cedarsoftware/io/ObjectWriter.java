@@ -94,7 +94,12 @@ public class ObjectWriter
 
     public Stats write(Object obj, Writer out)
     {
-        final boolean leastDeep = true; // TODO from config
+        return write(obj, out, true);
+    }
+
+    public Stats write(Object obj, Writer out, boolean leastDeep)
+    {
+//        final boolean leastDeep = true; // TODO from config
         RefsAccounter refsAccounter = new RefsAccounter(leastDeep);
 
         driveIn(obj, (object, depth, key, accessor, context) -> refsAccounter.recordOneUse(object, depth) ? null : emptyterator());
