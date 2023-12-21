@@ -110,8 +110,8 @@ public class ObjectWriter
         driveIn(obj, new OneGoWriter(config, refsAccounter, autom));
 
         Stats ret = new Stats();
-        ret.maxDepth = autom.maxDepth;
-        ret.maxQueueLength = autom.maxQueueLength;
+        ret.maxDepth = autom.getMaxDepth();
+        ret.maxQueueLength = autom.getMaxQueueLength();
 
         return ret;
     }

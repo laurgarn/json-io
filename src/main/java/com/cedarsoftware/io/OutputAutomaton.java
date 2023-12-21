@@ -254,8 +254,10 @@ public class OutputAutomaton {
 	final Stack<StateForIndent> easyStack;
 	final Queue<Unit> queue;
 
-	int maxDepth;
-	int maxQueueLength;
+	@Getter
+	private int maxDepth;
+	@Getter
+	private int maxQueueLength;
 
 	public OutputAutomaton(Writer writer, boolean throwsOnBadMove, Config config) {
 		this.writer = writer;
