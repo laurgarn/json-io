@@ -95,7 +95,7 @@ public class OutputAutomatonTest {
 		System.out.printf("Long: %d%n", got.length());
 		System.out.println(got);
 
-		assertTrue(autom.maxQueueLength < 14, "Max queue length " + autom.maxQueueLength + " should be lower than 10");
+		assertTrue(autom.getMaxQueueLength() < 14, "Max queue length " + autom.getMaxQueueLength() + " should be lower than 10");
 		assertEquals(expectedLength, got.length());
 	}
 }
