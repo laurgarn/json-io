@@ -40,6 +40,16 @@ class RefPrep {
 	void updateCount(int c) {
 		count = c;
 	}
+
+	@Override
+	public String toString()
+	{
+		return "RefPrep{" +
+				"id=" + id +
+				", minDepth=" + minDepth +
+				", count=" + count +
+				'}';
+	}
 }
 
 public class RefsAccounter {
@@ -89,7 +99,7 @@ public class RefsAccounter {
 
 		if (prep.getId() == 0) {
 			prep.setId(growing++);
-			if (prep.getCount() > 0 && (!leastDeep || depth == prep.getMinDepth())) {
+			if (prep.getCount() > 0 && (!leastDeep || depth <= prep.getMinDepth())) {
 				prep.updateCount(0);
 				return -prep.getId(); // -> id
 			}
@@ -101,7 +111,7 @@ public class RefsAccounter {
 			return prep.getId(); // -> ref
 		}
 
-		if (leastDeep && depth == prep.getMinDepth() && prep.getCount() > 0) {
+		if (leastDeep && depth <= prep.getMinDepth() && prep.getCount() > 0) {
 			prep.updateCount(0);
 			return -prep.getId(); // -> id
 		}
@@ -115,7 +125,7 @@ public class RefsAccounter {
 		return mayId != null;
 	}
 
-	public Map<Object, RefPrep> getView() {
+	Map<Object, RefPrep> getView() {
 		return Collections.unmodifiableMap(refPrepsByObj);
 	}
 }
