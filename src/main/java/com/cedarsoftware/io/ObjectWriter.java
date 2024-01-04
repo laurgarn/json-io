@@ -324,6 +324,10 @@ public class ObjectWriter
             {
                 autom.emitValue("null");
             }
+            else if (object instanceof Enum && config.enumPublicFieldsOnly)
+            {
+                return null; // as a regular object, so
+            }
             else
             {
                 autom.emitValue(object.toString());
@@ -460,8 +464,9 @@ public class ObjectWriter
 
             // delegation / plugins
 
-            if (MetaUtils.isLogicalPrimitive(object.getClass()))
-            {
+            if (config.enumPublicFieldsOnly && object instanceof Enum) {
+                // will emit end
+            } else if (MetaUtils.isLogicalPrimitive(object.getClass())) {
                 return;
             }
 
