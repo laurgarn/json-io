@@ -102,7 +102,12 @@ public class ObjectWriter
 //        final boolean leastDeep = true; // TODO from config
         RefsAccounter refsAccounter = new RefsAccounter(leastDeep);
 
-        driveIn(obj, (object, depth, key, accessor, context) -> refsAccounter.recordOneUse(object, depth) ? null : emptyterator());
+        driveIn(obj, (object, depth, key, accessor, context) -> {
+            if (object == null) return emptyterator();
+            if (object.getClass() == Class.class) return emptyterator();
+            if (MetaUtils.isLogicalPrimitive(object.getClass())) return emptyterator();
+            return refsAccounter.recordOneUse(object, depth) ? null : emptyterator();
+        });
 
         OutputAutomaton autom;
         if (!config.isPrettyPrint()) {
@@ -197,7 +202,7 @@ public class ObjectWriter
 
             if (showsType)
             {
-                autom.emitKey(config.isShortMetaKeys() ? "@t" : "@type");
+                emitTypeKey();
                 String typeName = c.getName();
                 String shortName = getSubstituteTypeNameIfExists(typeName, config);
                 autom.emitValue(shortName != null ? shortName : typeName);
@@ -305,15 +310,15 @@ public class ObjectWriter
                 if (showType)
                 {
                     autom.emitObjectStart();
-                    autom.emitKey(config.isShortMetaKeys() ? "@t" : "@type");
+                    emitTypeKey();
                     autom.emitValue("long");
-                    autom.emitKey("value");
-                    autom.emitValue(object.toString());
+                    emitValueKey();
+                    autom.emitValue(object.toString());  // TODO tell automaton (not to avoid / force) quotes
                     autom.emitObjectEnd();
                 }
                 else
                 {
-                    autom.emitValue(object.toString());
+                    autom.emitValue(object.toString());  // TODO tell automaton (not to avoid / force) quotes
                 }
             }
             else if (!allowsNanAndInfinity && object instanceof Double && (Double.isNaN((Double) object) || Double.isInfinite((Double) object)))
@@ -324,9 +329,31 @@ public class ObjectWriter
             {
                 autom.emitValue("null");
             }
+            else if (object instanceof Number && config.enumPublicFieldsOnly) // hack to to cope with legacy
+            {
+                if (showType)
+                {
+                    String className = object.getClass().getName();
+                    String alias = config.aliasTypeNames.get(className);
+                    autom.emitObjectStart();
+                    emitTypeKey();
+                    autom.emitValue(alias != null ? alias : className);
+                    emitValueKey();
+                    autom.emitValue(object.toString());
+                    autom.emitObjectEnd();
+                }
+                else
+                {
+                    autom.emitValue(object.toString()); // no need for quotes
+                }
+            }
             else if (object instanceof Enum && config.enumPublicFieldsOnly)
             {
                 return null; // as a regular object, so
+            }
+            else if (object instanceof Class)
+            {
+                autom.emitValue(((Class<?>)object).getName());
             }
             else
             {
@@ -334,6 +361,16 @@ public class ObjectWriter
             }
 
             return emptyterator();
+        }
+
+        private void emitTypeKey()
+        {
+            autom.emitKey(config.isShortMetaKeys() ? "@t" : "@type");
+        }
+
+        private void emitValueKey()
+        {
+            autom.emitKey("value");
         }
 
         SidesIterator onArray(Object object, boolean usesAKey)
