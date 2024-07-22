@@ -170,7 +170,7 @@ public class MetaUtils
         nameToClass.put("date", Date.class);
         nameToClass.put("class", Class.class);
     }
-    
+
     public static Optional<Class<?>> getClassIfEnum(Class<?> c) {
         if (c.isEnum()) {
             return Optional.of(c);
@@ -574,7 +574,7 @@ public class MetaUtils
         }
         return arg;
     }
-    
+
     public static <K, V> V getValueWithDefaultForNull(Map map, K key, V defaultValue) {
         V value = (V) map.get(key);
         return (value == null) ? defaultValue : value;
@@ -620,7 +620,7 @@ public class MetaUtils
         } catch (Throwable ignored) {
         }
     }
-    
+
     /**
      * Use this method when you don't want a length check to
      * throw a NullPointerException when
