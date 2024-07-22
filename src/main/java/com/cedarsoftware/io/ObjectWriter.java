@@ -104,14 +104,23 @@ public class ObjectWriter
 
         driveIn(obj, (object, depth, key, accessor, context) -> refsAccounter.recordOneUse(object, depth) ? null : emptyterator());
 
-        OutputAutomaton.Config config1 = !config.isPrettyPrint() ? null : new OutputAutomaton.Config();
-        OutputAutomaton autom = new OutputAutomaton(out, true, config1);
+        OutputAutomaton autom;
+        if (!config.isPrettyPrint()) {
+            autom = new BareOutputAutomaton(out, true);
+        } else {
+            OutputAutomatonWithFormatting.Config config1 = !config.isPrettyPrint() ? null : new OutputAutomatonWithFormatting.Config();
+            autom = new OutputAutomatonWithFormatting(out, true, config1);
+        }
 
         driveIn(obj, new OneGoWriter(config, refsAccounter, autom));
 
         Stats ret = new Stats();
-        ret.maxDepth = autom.getMaxDepth();
-        ret.maxQueueLength = autom.getMaxQueueLength();
+        if (autom instanceof OutputAutomatonWithFormatting)
+        {
+            OutputAutomatonWithFormatting aut = (OutputAutomatonWithFormatting) autom;
+            ret.maxDepth = aut.getMaxDepth();
+            ret.maxQueueLength = aut.getMaxQueueLength();
+        }
 
         return ret;
     }
