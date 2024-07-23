@@ -329,12 +329,12 @@ public class ObjectWriter
             {
                 autom.emitValue("null");
             }
-            else if (object instanceof Number && config.enumPublicFieldsOnly) // hack to to cope with legacy
+            else if (object instanceof Number && config.isEnumPublicFieldsOnly()) // hack to to cope with legacy
             {
                 if (showType)
                 {
                     String className = object.getClass().getName();
-                    String alias = config.aliasTypeNames.get(className);
+                    String alias = config.aliases().get(className);
                     autom.emitObjectStart();
                     emitTypeKey();
                     autom.emitValue(alias != null ? alias : className);
@@ -347,7 +347,7 @@ public class ObjectWriter
                     autom.emitValue(object.toString()); // no need for quotes
                 }
             }
-            else if (object instanceof Enum && config.enumPublicFieldsOnly)
+            else if (object instanceof Enum && config.isEnumPublicFieldsOnly())
             {
                 return null; // as a regular object, so
             }
@@ -501,7 +501,7 @@ public class ObjectWriter
 
             // delegation / plugins
 
-            if (config.enumPublicFieldsOnly && object instanceof Enum) {
+            if (config.isEnumPublicFieldsOnly() && object instanceof Enum) {
                 // will emit end
             } else if (MetaUtils.isLogicalPrimitive(object.getClass())) {
                 return;
