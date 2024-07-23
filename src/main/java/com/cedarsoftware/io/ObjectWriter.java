@@ -87,8 +87,8 @@ public class ObjectWriter
     public ObjectWriter(WriteOptions config)
     {
         if (config == null) {
-			config = new WriteOptionsBuilder().build();
-		}
+            config = new WriteOptionsBuilder().build();
+        }
         this.config = config;
     }
 
@@ -100,7 +100,7 @@ public class ObjectWriter
     public Stats write(Object obj, Writer out, boolean leastDeep)
     {
 //        final boolean leastDeep = true; // TODO from config
-        RefsAccounter refsAccounter = new RefsAccounter(leastDeep);
+        RefsAccounter refsAccounter = new RefsAccounter(leastDeep, true);
 
         driveIn(obj, (object, depth, key, accessor, context) -> {
             if (object == null) return emptyterator();
@@ -180,6 +180,7 @@ public class ObjectWriter
             }
 
             Long codedId = refsAccounter.getCodedId(object, depth);
+
             boolean usesAKey = codedId != null || showsType;
             if (usesAKey)
             {
@@ -333,27 +334,35 @@ public class ObjectWriter
             {
                 if (showType)
                 {
-                    String className = object.getClass().getName();
-                    String alias = config.aliases().get(className);
-                    autom.emitObjectStart();
-                    emitTypeKey();
-                    autom.emitValue(alias != null ? alias : className);
-                    emitValueKey();
-                    autom.emitValue(object.toString());
-                    autom.emitObjectEnd();
+                    typeAndValue(object);
                 }
                 else
                 {
                     autom.emitValue(object.toString()); // no need for quotes
                 }
             }
-            else if (object instanceof Enum && config.isEnumPublicFieldsOnly())
+            else if (object instanceof Enum)
             {
-                return null; // as a regular object, so
+                if (!accessor.getFieldType().isEnum())
+                {
+                    typeAndValue(object);
+                }
+                else if (config.isEnumPublicFieldsOnly())
+                {
+                    return null; // as a regular object, so
+                }
+                else
+                {
+                    autom.emitValue(object.toString());
+                }
             }
             else if (object instanceof Class)
             {
-                autom.emitValue(((Class<?>)object).getName());
+                autom.emitValue(((Class<?>) object).getName());
+            }
+            else if (object instanceof String)
+            {
+                autom.emitValue("\"" + object + "\"");
             }
             else
             {
@@ -361,6 +370,17 @@ public class ObjectWriter
             }
 
             return emptyterator();
+        }
+
+        private void typeAndValue(Object object) {
+            String className = object.getClass().getName();
+            String alias = config.aliases().get(className);
+            autom.emitObjectStart();
+            emitTypeKey();
+            autom.emitValue(alias != null ? alias : className);
+            emitValueKey();
+            autom.emitValue(object.toString());
+            autom.emitObjectEnd();
         }
 
         private void emitTypeKey()

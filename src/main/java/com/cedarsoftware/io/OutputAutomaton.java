@@ -1,13 +1,5 @@
 package com.cedarsoftware.io;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.EmptyStackException;
-import java.util.List;
-
-import java.io.IOException;
-import java.io.Writer;
-
 /**
  * Write Json incrementally.
  * Moves OS, OE, K, AS, AE, V. R
@@ -25,202 +17,210 @@ public abstract class OutputAutomaton
 
     public enum State
     {
-		Void,
-		WFK,
-		WFV,
-		WNK,
-		WNV,
-		WV,
-		GV,
-	}
+        Void,
+        WFK,
+        WFV,
+        WNK,
+        WNV,
+        WV,
+        GV,
+    }
 
     protected enum Move
     {
-		OS("Object start"),
-		K("Key"),
-		V("Value"),
-		R("Rollback"),
-		OE("Object end"),
-		AS("Array start"),
-		AE("Array end");
+        OS("Object start"),
+        K("Key"),
+        V("Value"),
+        R("Rollback"),
+        OE("Object end"),
+        AS("Array start"),
+        AE("Array end");
 
         Move(String str)
         {
-			this.str = str;
-		}
+            this.str = str;
+        }
 
         public String toString()
         {
-			return str;
-		}
+            return str;
+        }
 
-		final String str;
-	}
+        final String str;
+    }
 
     private final boolean throwsOnBadMove;
 
     public OutputAutomaton(boolean throwsOnBadMove)
-		{
-		this.throwsOnBadMove = throwsOnBadMove;
-	}
+        {
+        this.throwsOnBadMove = throwsOnBadMove;
+    }
 
     static Character getMoveChar(Move move)
     {
         switch (move)
         {
-			case OS:
+            case OS:
                 return '{';
-			case AS:
+            case AS:
                 return '[';
-			case OE:
+            case OE:
                 return '}';
-			case AE:
+            case AE:
                 return ']';
-		}
-		return null;
-	}
+        }
+        return null;
+    }
 
     public static boolean needsQuote(String s, boolean allowsQuoted)
     {
         final int len = s.length();
-		if (len == 0)
+        if (len == 0)
         {
-			return true;
+            return true;
         }
-		char fc = s.charAt(0);
+        char fc = s.charAt(0);
         switch (fc)
         {
-			case 'n':
-				return !s.equals("null");
-			case 't':
-				return !s.equals("true");
-			case 'f':
-				return !s.equals("false");
-			case '0':
-			case '1':
-			case '2':
-			case '3':
-			case '4':
-			case '5':
-			case '6':
-			case '7':
-			case '8':
-			case '9':
+            case 'n':
+                return !s.equals("null");
+            case 't':
+                return !s.equals("true");
+            case 'f':
+                return !s.equals("false");
+            case '0':
+            case '1':
+            case '2':
+            case '3':
+            case '4':
+            case '5':
+            case '6':
+            case '7':
+            case '8':
+            case '9':
                 return !OutputAutomaton.isJsonNumber(s);
-			case '"':
-				return !allowsQuoted || len < 2 || s.charAt(len - 1) != '"'
-                        || OutputAutomaton.needsQuote(s.substring(1, len - 2), false);
-		}
-		return true;
-	}
+            case '"':
+                break;
+            default:
+                return true;
+        }
+
+        // cas "
+        if (!allowsQuoted)
+            return true;
+        if (len < 2 || s.charAt(len - 1) != '"')
+            return true;
+        return false;
+
+    }
 
     public static boolean isJsonNumber(String s)
     {
-		if (s == null)
+        if (s == null)
         {
-			return false;
+            return false;
         }
 
-		// 0:start 1:got_sign 2:first_zero 3:got_not_zero 4:got_dot 5:got_after_dot 6:got_exp 7:got_after_exp
-		final int len = s.length();
-		int state = 0;
+        // 0:start 1:got_sign 2:first_zero 3:got_not_zero 4:got_dot 5:got_after_dot 6:got_exp 7:got_after_exp
+        final int len = s.length();
+        int state = 0;
         for (int i = 0; i < len; i++)
         {
-			char c = s.charAt(i);
+            char c = s.charAt(i);
             switch (c)
             {
-				case '-':
-					if (state == 0)
+                case '-':
+                    if (state == 0)
                     {
-						state = 1;
+                        state = 1;
                     }
-					else if (state == 6)
+                    else if (state == 6)
                     {
-						state = 7;
+                        state = 7;
                     }
-					else
+                    else
                     {
-						return false;
+                        return false;
                     }
-				case '0':
-					if (state == 2)
+                case '0':
+                    if (state == 2)
                     {
-						return false;
+                        return false;
                     }
-					if (state == 0)
+                    if (state == 0)
                     {
-						state = 2;
+                        state = 2;
                     }
-					else if (state == 4)
+                    else if (state == 4)
                     {
-						state = 5;
+                        state = 5;
                     }
-					break;
-				case '.':
-					if (state != 2 && state != 3)
+                    break;
+                case '.':
+                    if (state != 2 && state != 3)
                     {
-						return false;
+                        return false;
                     }
-					state = 4;
-					break;
-				case '1':
-				case '2':
-				case '3':
-				case '4':
-				case '5':
-				case '6':
-				case '7':
-				case '8':
-				case '9':
-					if (state == 2)
+                    state = 4;
+                    break;
+                case '1':
+                case '2':
+                case '3':
+                case '4':
+                case '5':
+                case '6':
+                case '7':
+                case '8':
+                case '9':
+                    if (state == 2)
                     {
-						return false;
+                        return false;
                     }
-					if (state == 0 || state == 1)
+                    if (state == 0 || state == 1)
                     {
-						state = 3;
+                        state = 3;
                     }
-					else if (state == 4)
+                    else if (state == 4)
                     {
-						state = 5;
+                        state = 5;
                     }
-					else if (state == 6 || state == 7)
+                    else if (state == 6 || state == 7)
                     {
-						state = 8;
+                        state = 8;
                     }
-					break;
-				case 'e':
-				case 'E':
+                    break;
+                case 'e':
+                case 'E':
                     if (state != 3 && state != 5)
                     {
                         return false;
                     }
-					state = 6;
-					break;
+                    state = 6;
+                    break;
                 default:
-					return false;
-			}
-		}
+                    return false;
+            }
+        }
 
         switch (state)
         {
-			case 0:
-			case 1:
-			case 4:
-			case 6:
-			case 7:
-				return false;
-	}
-		return true;
-	}
+            case 0:
+            case 1:
+            case 4:
+            case 6:
+            case 7:
+                return false;
+    }
+        return true;
+    }
 
-	/**
-	 * Write out special characters "\b, \f, \t, \n, \r", as such, backslash as \\
-	 * quote as \" and values less than an ASCII space (20hex) as "\\u00xx" format,
-	 * characters in the range of ASCII space to a '~' as ASCII, and anything higher in UTF-8.
-	 *
-	 * @param s String to be written in UTF-8 format on the output stream.
-	 */
+    /**
+     * Write out special characters "\b, \f, \t, \n, \r", as such, backslash as \\
+     * quote as \" and values less than an ASCII space (20hex) as "\\u00xx" format,
+     * characters in the range of ASCII space to a '~' as ASCII, and anything higher in UTF-8.
+     *
+     * @param s String to be written in UTF-8 format on the output stream.
+     */
     public static String escapedUtf8String(String s)
     {
         final int len = s.length();
@@ -273,12 +273,12 @@ public abstract class OutputAutomaton
     public boolean emitObjectStart()
     {
         return dispatch(Move.OS, null);
-		}
+    }
 
     public boolean emitObjectEnd()
     {
         return dispatch(Move.OE, null);
-	}
+    }
 
     public boolean emitKey(String key)
     {
@@ -310,7 +310,7 @@ public abstract class OutputAutomaton
             default:
                 return returnFalseOrThrow("Close");
         }
-		}
+    }
 
     public boolean emitValue(String value)
     {
@@ -320,7 +320,7 @@ public abstract class OutputAutomaton
     public boolean rollbackLastKey()
     {
         return dispatch(Move.R, null);
-		}
+    }
 
     private boolean dispatch(Move move, String str)
     {
@@ -350,14 +350,14 @@ public abstract class OutputAutomaton
         {
             case OS:
                 program(move, State.WFK, null, null, null);
-		return true;
+                return true;
             case AS:
                 program(move, State.WV, null, null, null);
                 return true;
             default:
                 return returnFalseOrThrow("Move " + move + " not allowed from " + getCurrentState());
         }
-	}
+    }
 
     protected boolean fromWaitingForKey(Move move, String key, boolean first)
     {
@@ -383,7 +383,7 @@ public abstract class OutputAutomaton
             default:
                 return returnFalseOrThrow("Move " + move + " not allowed from " + getCurrentState());
         }
-	}
+    }
 
     protected boolean fromWaitingForValue(Move move, String value, boolean first)
     {
@@ -405,7 +405,7 @@ public abstract class OutputAutomaton
             default:
                 return returnFalseOrThrow("Move " + move + " not allowed from " + getCurrentState());
         }
-		}
+    }
 
     protected boolean fromWaitingInArray(Move move, String str, boolean isFirst)
     {
@@ -418,8 +418,8 @@ public abstract class OutputAutomaton
             case AE:
                 if (isStackEmpty())
                 {
-		return false;
-	}
+                    return false;
+                }
                 program(move, null, null, null, null);
                 mayFlush();
                 return true;
@@ -441,7 +441,7 @@ public abstract class OutputAutomaton
 
     protected abstract void mayFlush();
 
-	public boolean flush() {
+    public boolean flush() {
         return false;
     }
 
@@ -453,5 +453,5 @@ public abstract class OutputAutomaton
         }
 
         return false;
-	}
+    }
 }

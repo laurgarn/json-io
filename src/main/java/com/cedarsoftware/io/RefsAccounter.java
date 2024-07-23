@@ -1,10 +1,13 @@
 package com.cedarsoftware.io;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import com.cedarsoftware.util.SealableList;
 
 class RefPrep {
 	private long id = 0;
@@ -55,14 +58,26 @@ class RefPrep {
 public class RefsAccounter {
 
 	private final boolean              leastDeep;
+	private final boolean              dropsALot;
 	private final Map<Object, RefPrep> refPrepsByObj = new IdentityHashMap<>();
 	private       long                 growing       = 1;
 
-	public RefsAccounter(boolean leastDeep) {
+	public RefsAccounter(boolean leastDeep, boolean dropsALot) {
 		this.leastDeep = leastDeep;
+		this.dropsALot = dropsALot;
 	}
 
 	public boolean recordOneUse(Object obj, int depth) {
+		if (dropsALot) {
+			if (obj == null) return false;
+			if (MetaUtils.isLogicalPrimitive(obj.getClass())) return false;
+			if (obj instanceof Collection && ((Collection<?>)obj).isEmpty()) {
+				if (obj.getClass().getSimpleName().startsWith("Sealable"))
+					return false;
+			}
+		}
+
+
 		RefPrep refPrep = refPrepsByObj.get(obj);
 		boolean wasNotHere = refPrep == null;
 		if (wasNotHere) {
@@ -127,5 +142,37 @@ public class RefsAccounter {
 
 	Map<Object, RefPrep> getView() {
 		return Collections.unmodifiableMap(refPrepsByObj);
+	}
+
+	public String debugString() {
+		int[] stats = new int[10];
+		Class<?>[] classes = new Class[1];
+		refPrepsByObj.forEach((k, v) -> {
+			int c = v.getCount();
+			int md = v.getMinDepth();
+			int idx = (c == 0 || c == 1) ? c : 2;
+			stats[idx] += 1;
+			if (c > stats[3]) {
+				stats[3] = c;
+				classes[0] = k == null ? Void.class : k.getClass();
+				stats[8] = md;
+			}
+			if (md > stats[9]) stats[9] = md;
+			if (k instanceof String) {
+				stats[4] += 1;
+				if (c > 1) stats[5] += 1;
+			}
+			if (k instanceof Number) {
+				stats[6] += 1;
+				if (c > 1) stats[7] += 1;
+			}
+		});
+
+		return String.format("#:%d, 0s:%d, 1s;%d, +s:%d, maxC:%d (%s, %d), sk:%d(%d), nk:%d(%d), maxD:%d",
+				refPrepsByObj.size(), stats[0], stats[1], stats[2],
+				stats[3], classes[0], stats[8],
+				stats[4], stats[5], stats[6], stats[7],
+				stats[9]
+				);
 	}
 }

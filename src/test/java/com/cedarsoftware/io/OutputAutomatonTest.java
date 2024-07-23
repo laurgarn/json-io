@@ -105,4 +105,13 @@ public class OutputAutomatonTest {
 		}
 		assertEquals(expectedLength, got.length());
 	}
+
+	@Test
+	void needForQuotes()
+	{
+		assertFalse(OutputAutomaton.needsQuote("1.0", true));
+		assertFalse(OutputAutomaton.needsQuote("1e1", true));
+		assertTrue(OutputAutomaton.needsQuote("abcd", true));
+		assertFalse(OutputAutomaton.needsQuote("\"1e1\"", true));
+	}
 }
