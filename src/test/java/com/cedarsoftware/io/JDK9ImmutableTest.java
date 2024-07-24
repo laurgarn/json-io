@@ -1,9 +1,12 @@
 package com.cedarsoftware.io;
 
+import java.io.CharArrayWriter;
+import java.io.IOException;
 import java.time.ZonedDateTime;
 import java.time.temporal.Temporal;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -48,20 +51,37 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  */
 class JDK9ImmutableTest
 {
+     static class Pair<K, V> {
+        K k;
+        V v;
+        Pair(K k, V v) {
+            this.k = k;
+            this.v = v;
+        }
+    }
+
+    enum Enu {
+        V1, V2
+    }
+
     static class Rec {
         final String s;
-        final int i;
+        final int    i;
+
         Rec(String s, int i) {
             this.s = s;
             this.i = i;
         }
 
-        Rec link;
+        Enu       e;
+        Class     k;
+        Rec       link;
         List<Rec> ilinks;
         List<Rec> mlinks;
 
-		Map<String, Rec> smap;
-    }
+        Map<String, Rec> smap;
+        Map<Pair<Integer, Character>, Object> pmap;
+   }
 
     @Test
     public void testCopyOfListOf() {
@@ -727,4 +747,60 @@ class JDK9ImmutableTest
         assertEquals("bar", map.keySet().toArray()[1]);
         assertEquals("bar", map.values().toArray()[1]);
     }
+
+    @Test
+    public void paf() {
+        Rec rec1 = new Rec("OneOrThree", 0);
+        Rec rec2 = new Rec("Two", 2);
+        Rec rec3 = new Rec("Five", 5);
+        //rec1.link = rec2;
+        //rec2.link = rec1;
+        rec1.ilinks = listOf(rec2, rec1);
+//        rec1.e = Enu.V1;
+//		rec1.k = Object.class;
+        rec1.smap = new HashMap<>();
+        rec1.smap.put("pouf", new Rec("Ah", 3));
+        rec1.smap.put("pif", rec1);
+        rec2.ilinks = listOf();
+        String[] a = "a quite longuish sentence to cut into words of various lengths even more".split(" ");
+        Object[] b = new Object[1];
+        b[0] = a;
+        rec2.pmap = new HashMap<>(mapOf(new Pair<>(1, 'a'), "start", new Pair<>(5, 'b'), "end"));
+        //rec2.map = new HashMap<>(Map.of("Zwei", rec2));
+        rec2.smap = mapOf("Zwei", rec2);
+        rec3.pmap = new HashMap<>(mapOf(new Pair<>(3, 'z'), b));
+        List<Rec> ol = listOf(rec1, rec2, rec1, rec2, rec1, rec3);
+
+        CharArrayWriter fw = new CharArrayWriter(1000);
+        WriteOptions options = new WriteOptionsBuilder().skipNullFields(true).prettyPrint(true).build();
+        ObjectWriter ow = new ObjectWriter(options);
+
+
+        ObjectWriter.Stats stats = ow.write(ol, fw);
+        System.out.println(fw);
+
+        assertEquals(9, stats.getMaxDepth());
+        assertEquals(15, stats.getMaxQueueLength());
+        assertEquals(1802, fw.size());
+    }
+
+    // to be used as Renderer in IntelliJ
+    public static String endOf(CharArrayWriter caw, int uptoCount) {
+        if (caw == null) return "null";
+        String asStr = caw.toString();
+        if (asStr.length() <= uptoCount)
+            return asStr.length() + ":'" + asStr + "'";
+
+        return asStr.length() + ":'" + asStr.substring(asStr.length() - uptoCount) + "'...";
+    }
+
+    @Test
+    public void pouf() throws IOException
+    {
+        CharArrayWriter fw = new CharArrayWriter(1000);
+        fw.write("Sufficiently long");
+        String str = endOf(fw, 4);
+        assertEquals(12, str.length());
+    }
+
 }
