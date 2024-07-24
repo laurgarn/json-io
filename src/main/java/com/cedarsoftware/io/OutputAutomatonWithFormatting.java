@@ -173,6 +173,7 @@ public class OutputAutomatonWithFormatting extends OutputAutomaton
 		private final String    str;
 		private final Character sep;
 		private final Move      move;
+		private final boolean   isToBeQuoted;
 
 		private StateForIndent level;
 
@@ -199,10 +200,11 @@ public class OutputAutomatonWithFormatting extends OutputAutomaton
 		}
 
 
-		public Unit(String str, Character sep, Move move) {
+		public Unit(String str, Character sep, Move move, boolean isToBeQuoted) {
 			this.str = str;
 			this.sep = sep;
 			this.move = move;
+			this.isToBeQuoted = isToBeQuoted;
 		}
 
 		public String toString() {
@@ -255,8 +257,9 @@ public class OutputAutomatonWithFormatting extends OutputAutomaton
 	}
 
 	@Override
-	protected void program(Move move, State nextState, Character preSeparator, String str, State toSetOnPrevTop) {
-		Unit newUnit = new Unit(str, preSeparator, move);
+	protected void program(Move move, State nextState, Character preSeparator, String str, State toSetOnPrevTop,
+			boolean isToBeQuoted) {
+		Unit newUnit = new Unit(str, preSeparator, move, isToBeQuoted);
 		queue.add(newUnit);
 		if (queue.size() > maxQueueLength) {
 			maxQueueLength = queue.size();

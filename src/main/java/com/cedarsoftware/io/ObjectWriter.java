@@ -364,7 +364,7 @@ public class ObjectWriter
             }
             else if (object instanceof String)
             {
-                autom.emitValue("\"" + object + "\"");
+                autom.emitStringValue((String)object);
             }
             else
             {

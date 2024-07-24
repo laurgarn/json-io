@@ -273,27 +273,27 @@ public abstract class OutputAutomaton
 
     public boolean emitObjectStart()
     {
-        return dispatch(Move.OS, null);
+        return dispatch(Move.OS, null, false);
     }
 
     public boolean emitObjectEnd()
     {
-        return dispatch(Move.OE, null);
+        return dispatch(Move.OE, null, false);
     }
 
     public boolean emitKey(String key)
     {
-        return dispatch(Move.K, key);
+        return dispatch(Move.K, key, false);
     }
 
     public boolean emitArrayStart()
     {
-        return dispatch(Move.AS, null);
+        return dispatch(Move.AS, null, false);
     }
 
     public boolean emitArrayEnd()
     {
-        return dispatch(Move.AE, null);
+        return dispatch(Move.AE, null, false);
     }
 
     public boolean emitEnd()
@@ -315,15 +315,20 @@ public abstract class OutputAutomaton
 
     public boolean emitValue(String value)
     {
-        return dispatch(Move.V, value);
+        return dispatch(Move.V, value, false);
+    }
+
+    public boolean emitStringValue(String value)
+    {
+        return dispatch(Move.V, value, true);
     }
 
     public boolean rollbackLastKey()
     {
-        return dispatch(Move.R, null);
+        return dispatch(Move.R, null, false);
     }
 
-    private boolean dispatch(Move move, String str)
+    private boolean dispatch(Move move, String str, boolean isToBeQuoted)
     {
         switch (getCurrentState())
         {
@@ -334,10 +339,10 @@ public abstract class OutputAutomaton
                 return fromWaitingForKey(move, str, getCurrentState() == State.WFK);
             case WFV:
             case WNV:
-                return fromWaitingForValue(move, str, getCurrentState() == State.WFV);
+                return fromWaitingForValue(move, str, getCurrentState() == State.WFV, isToBeQuoted);
             case WV:
             case GV:
-                return fromWaitingInArray(move, str, getCurrentState() == State.WV);
+                return fromWaitingInArray(move, str, getCurrentState() == State.WV, isToBeQuoted);
         }
 
         return false;
@@ -350,10 +355,10 @@ public abstract class OutputAutomaton
         switch (move)
         {
             case OS:
-                program(move, State.WFK, null, null, null);
+                program(move, State.WFK, null, null, null, false);
                 return true;
             case AS:
-                program(move, State.WV, null, null, null);
+                program(move, State.WV, null, null, null, false);
                 return true;
             default:
                 return returnFalseOrThrow("Move " + move + " not allowed from " + getCurrentState());
@@ -365,14 +370,14 @@ public abstract class OutputAutomaton
         switch (move)
         {
             case K:
-                program(move, first ? State.WFV : State.WNV, first ? null : ',', key, null);
+                program(move, first ? State.WFV : State.WNV, first ? null : ',', key, null, false);
                 return true;
             case OE:
                 if (isStackEmpty())
                 {
                     return false;
                 }
-                program(move, null, null, null, null);
+                program(move, null, null, null, null, false);
                 mayFlush();
                 return true;
             case R:
@@ -386,19 +391,19 @@ public abstract class OutputAutomaton
         }
     }
 
-    protected boolean fromWaitingForValue(Move move, String value, boolean first)
+    protected boolean fromWaitingForValue(Move move, String value, boolean first, boolean isToBeQuoted)
     {
         switch (move)
         {
             case V:
-                program(move, State.WNK, ':', value, null);
+                program(move, State.WNK, ':', value, null, isToBeQuoted);
                 mayFlush();
                 return true;
             case OS:
-                program(move, State.WFK, ':', null, State.WNK);
+                program(move, State.WFK, ':', null, State.WNK, false);
                 return true;
             case AS:
-                program(move, State.WV, ':', null, State.WNK);
+                program(move, State.WV, ':', null, State.WNK, false);
                 return true;
             case R:
                 doRollback();
@@ -408,12 +413,12 @@ public abstract class OutputAutomaton
         }
     }
 
-    protected boolean fromWaitingInArray(Move move, String str, boolean isFirst)
+    protected boolean fromWaitingInArray(Move move, String str, boolean isFirst, boolean isToBeQuoted)
     {
         switch (move)
         {
             case V:
-                program(move, State.GV, isFirst ? null : ',', str, null);
+                program(move, State.GV, isFirst ? null : ',', str, null, isToBeQuoted);
                 mayFlush();
                 return true;
             case AE:
@@ -421,14 +426,14 @@ public abstract class OutputAutomaton
                 {
                     return false;
                 }
-                program(move, null, null, null, null);
+                program(move, null, null, null, null, false);
                 mayFlush();
                 return true;
             case OS:
-                program(move, State.WFK, isFirst ? null : ',', null, State.GV);
+                program(move, State.WFK, isFirst ? null : ',', null, State.GV, false);
                 return true;
             case AS:
-                program(move, State.WV, isFirst ? null : ',', null, State.GV);
+                program(move, State.WV, isFirst ? null : ',', null, State.GV, false);
                 mayFlush();
                 return true;
             default:
@@ -436,7 +441,8 @@ public abstract class OutputAutomaton
         }
     }
 
-    protected abstract void program(Move move, State nextState, Character preSeparator, String str, State toSetOnPrevTop);
+    protected abstract void program(Move move, State nextState, Character preSeparator, String str, State toSetOnPrevTop,
+            boolean isToBeQuoted);
 
     protected abstract boolean doRollback();
 

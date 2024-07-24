@@ -40,7 +40,8 @@ public class BareOutputAutomaton extends OutputAutomaton {
 	}
 
 	@Override
-	protected void program(OutputAutomaton.Move move, State nextState, Character preSeparator, String str, State toSetOnPrevTop)
+	protected void program(Move move, State nextState, Character preSeparator, String str, State toSetOnPrevTop,
+			boolean isToBeQuoted)
 	{
 		if (nextState != null)
 			setCurrentState(nextState);
@@ -79,11 +80,11 @@ public class BareOutputAutomaton extends OutputAutomaton {
 		}
 	}
 
-	protected boolean fromWaitingForValue(Move move, String value, boolean first) {
+	protected boolean fromWaitingForValue(Move move, String value, boolean first, boolean isToBeQuoted) {
 		switch (move) {
 			case V:
 				doCommitLastKey();
-				doString(value, ':', true);
+				doString(value, ':', !isToBeQuoted);
 				setCurrentState(State.WNK);
 				return true;
 			case OS:
@@ -107,7 +108,7 @@ public class BareOutputAutomaton extends OutputAutomaton {
 		}
 	}
 
-	protected boolean fromWaitingInArray(Move move, String str, boolean isFirst) {
+	protected boolean fromWaitingInArray(Move move, String str, boolean isFirst, boolean isToBeQuoted) {
 		switch (move) {
 			case V:
 				doString(str, isFirst ? null : ',', true);
@@ -137,7 +138,7 @@ public class BareOutputAutomaton extends OutputAutomaton {
 		this.currentState = nextState;
 	}
 
-	public static int nbChunksToUsed(int depth, int oneDeepBits, int largerChunksBits) {
+	public static int nbChunksToUse(int depth, int oneDeepBits, int largerChunksBits) {
 		int bitsToUse = depth * oneDeepBits;
 		int bitsOver = bitsToUse % largerChunksBits;
 		return bitsToUse / largerChunksBits + (bitsOver == 0 ? 0 : 1);
