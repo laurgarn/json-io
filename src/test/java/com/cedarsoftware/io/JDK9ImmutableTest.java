@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.regex.Pattern;
 
 import org.junit.jupiter.api.Test;
 
@@ -26,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * This class tests the JDK9+ List.of(), Set.of(), Map.of() which return immutable collections.  In addition,
@@ -749,15 +751,11 @@ class JDK9ImmutableTest
     }
 
     @Test
-    public void paf() {
+    public void objectWriter() {
         Rec rec1 = new Rec("OneOrThree", 0);
         Rec rec2 = new Rec("Two", 2);
         Rec rec3 = new Rec("Five", 5);
-        //rec1.link = rec2;
-        //rec2.link = rec1;
         rec1.ilinks = listOf(rec2, rec1);
-//        rec1.e = Enu.V1;
-//		rec1.k = Object.class;
         rec1.smap = new HashMap<>();
         rec1.smap.put("pouf", new Rec("Ah", 3));
         rec1.smap.put("pif", rec1);
@@ -766,22 +764,42 @@ class JDK9ImmutableTest
         Object[] b = new Object[1];
         b[0] = a;
         rec2.pmap = new HashMap<>(mapOf(new Pair<>(1, 'a'), "start", new Pair<>(5, 'b'), "end"));
-        //rec2.map = new HashMap<>(Map.of("Zwei", rec2));
         rec2.smap = mapOf("Zwei", rec2);
         rec3.pmap = new HashMap<>(mapOf(new Pair<>(3, 'z'), b));
         List<Rec> ol = listOf(rec1, rec2, rec1, rec2, rec1, rec3);
 
         CharArrayWriter fw = new CharArrayWriter(1000);
-        WriteOptions options = new WriteOptionsBuilder().skipNullFields(true).prettyPrint(true).build();
-        ObjectWriter ow = new ObjectWriter(options);
-
-
-        ObjectWriter.Stats stats = ow.write(ol, fw);
-        System.out.println(fw);
+        ObjectWriter.Stats stats = new ObjectWriter(new WriteOptionsBuilder().skipNullFields(true).prettyPrint(true).build())
+                .write(ol, fw);
 
         assertEquals(9, stats.getMaxDepth());
         assertEquals(15, stats.getMaxQueueLength());
-        assertEquals(1802, fw.size());
+        assertEquals(1789, fw.size());
+
+        ObjectWriter.Stats stats2 = new ObjectWriter(new WriteOptionsBuilder().skipNullFields(true).prettyPrint(false).build())
+                .write(ol, fw);
+        System.out.println(fw);
+    }
+
+    @Test
+    public void emptyArrayList() throws IOException {
+        Rec rec1 = new Rec("1E1", 0);
+        rec1.ilinks = new ArrayList<>();
+        Rec rec2 = new Rec("Two", 2);
+        List<Rec> ol = listOf(rec1, rec2);
+
+        CharArrayWriter fw = new CharArrayWriter(1000);
+        new ObjectWriter(new WriteOptionsBuilder().skipNullFields(true).prettyPrint(true).build()).write(ol, fw);
+        String a = fw.toString();
+        System.out.println(a);
+
+        assertEquals(2, a.split("@items").length);
+        assertTrue(a.contains("\"1E1\""));
+
+        fw.reset();
+        new ObjectWriter(new WriteOptionsBuilder().skipNullFields(true).prettyPrint(false).build()).write(ol, fw);
+        System.out.println(fw);
+        assertTrue(a.contains("\"1E1\""));
     }
 
     // to be used as Renderer in IntelliJ
@@ -795,7 +813,7 @@ class JDK9ImmutableTest
     }
 
     @Test
-    public void pouf() throws IOException
+    public void rendererTest() throws IOException
     {
         CharArrayWriter fw = new CharArrayWriter(1000);
         fw.write("Sufficiently long");

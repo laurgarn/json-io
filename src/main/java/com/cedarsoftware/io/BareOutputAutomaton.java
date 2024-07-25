@@ -111,7 +111,7 @@ public class BareOutputAutomaton extends OutputAutomaton {
 	protected boolean fromWaitingInArray(Move move, String str, boolean isFirst, boolean isToBeQuoted) {
 		switch (move) {
 			case V:
-				doString(str, isFirst ? null : ',', true);
+				doString(str, isFirst ? null : ',', isToBeQuoted);
 				setCurrentState(State.GV);
 				return true;
 			case AE:
@@ -176,7 +176,7 @@ public class BareOutputAutomaton extends OutputAutomaton {
 			if (c != null) {
 				writer.write(c);
 			}
-		if (!needsQuote(key, allowsNotQuoted)) {
+		if (allowsNotQuoted && !needsQuote(key, !allowsNotQuoted)) {
 			writer.write(key);
 		} else {
 			String escaped = escapedUtf8String(key);

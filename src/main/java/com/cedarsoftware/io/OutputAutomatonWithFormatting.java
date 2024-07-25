@@ -513,7 +513,7 @@ public class OutputAutomatonWithFormatting extends OutputAutomaton
 	}
 
 	private void flushStrPart(Unit unit) throws IOException {
-		if (!needsQuote(unit.str, unit.move == Move.V)) {
+		if (!unit.isToBeQuoted && !needsQuote(unit.str, unit.move == Move.V)) {
 			writer.write(unit.str);
 		} else {
 			String escaped = escapedUtf8String(unit.str);
