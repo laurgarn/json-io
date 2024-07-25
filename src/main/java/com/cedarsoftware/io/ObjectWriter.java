@@ -4,6 +4,8 @@ import com.cedarsoftware.io.sidesiterator.*;
 import com.cedarsoftware.io.reflect.Accessor;
 
 import java.io.Writer;
+import java.lang.reflect.Array;
+
 import java.util.*;
 
 public class ObjectWriter
@@ -399,6 +401,8 @@ public class ObjectWriter
             {
                 return null;
             }
+            if (Array.getLength(object) == 0)
+                return emptyterator();
 
             if (usesAKey)
             {
@@ -419,6 +423,9 @@ public class ObjectWriter
             try
             {
                 Map<?, ?> map = (Map<?, ?>) object;
+                if (map.isEmpty())
+                    return emptyterator();
+
                 boolean hasToUseParalleleSequences = config.isForceMapOutputAsTwoArrays()
                     || map.keySet().stream().anyMatch(ObjectWriter::problematicAsKey);
                 if (hasToUseParalleleSequences)
@@ -471,13 +478,17 @@ public class ObjectWriter
                 return null;
             }
 
+            Collection<?> collection = (Collection<?>) object;
+            if (collection.isEmpty())
+                return emptyterator();
+
             if (usesAKey)
             {
                 autom.emitKey(config.isShortMetaKeys() ? "@e" : "@items");
             }
             autom.emitArrayStart();
 
-            return new Proxyterator(((Collection<?>) object).iterator(), usesAKey);
+            return new Proxyterator(collection.iterator(), usesAKey);
         }
 
         SidesIterator fieldByField(Object object, boolean usesAKey)

@@ -113,5 +113,6 @@ public class OutputAutomatonTest {
 		assertFalse(OutputAutomaton.needsQuote("1e1", true));
 		assertTrue(OutputAutomaton.needsQuote("abcd", true));
 		assertFalse(OutputAutomaton.needsQuote("\"1e1\"", true));
+		assertFalse(OutputAutomaton.needsQuote("-1.0", true));
 	}
 }

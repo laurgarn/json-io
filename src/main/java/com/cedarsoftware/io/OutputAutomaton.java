@@ -88,6 +88,7 @@ public abstract class OutputAutomaton
                 return !s.equals("true");
             case 'f':
                 return !s.equals("false");
+            case '-':
             case '0':
             case '1':
             case '2':
